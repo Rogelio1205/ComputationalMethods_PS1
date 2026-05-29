@@ -4,5 +4,5 @@ def factorial(n):
     else:
         return n * factorial(n - 1)
 
-# Prueba
+
 print(factorial(5))

@@ -177,11 +177,60 @@
                       (token-type tok)
                       (token-value tok)))
             tokens))
+;; Convert text to HTML-safe string
+(define (escape-html s)
+  (let loop ([chars (string->list s)] [acc '()])
+    (if (null? chars)
+        (apply string-append (reverse acc))
+        (let ([c (car chars)])
+          (cond
+            [(char=? c #\&) (loop (cdr chars) (cons "&amp;" acc))]
+            [(char=? c #\<) (loop (cdr chars) (cons "&lt;" acc))]
+            [(char=? c #\>) (loop (cdr chars) (cons "&gt;" acc))]
+            [else (loop (cdr chars) (cons (string c) acc))])))))
 
-(define (debug-file input-path)
-  (let* ([source (read-file input-path)]
-         [tokens (tokenize-string source)])
-    (printf "Total tokens: ~a\n" (length tokens))
-    (printf "──────────────────────────\n")
-    (print-tokens tokens)))
-(debug-file "prueba.py")
+(define (token->-html tok)
+  (let* ([t (symbol->string (token-type tok))]
+         [v (escape-html (token-value tok))])
+    (if (string-ci=? t "whitespace")
+        v
+        (format "<span class=\"~a\">~a</span>" t v))))
+
+(define CSS
+  "pre.code {background:#1e1b2b;color:#fff;padding:1rem;white-space:pre;overflow:auto;font-family:monospace;}
+.keyword {color:#c792ea;font-weight:bold}
+.identifier {color:#ffffff}
+.integer {color:#f78c6c}
+.float {color:#f78c6c}
+.string {color:#c3e88d}
+.comment {color:#7f848e;font-style:italic}
+.operator {color:#89ddff}
+.delimiter {color:#f8f8f2}
+.whitespace {color:inherit}")
+
+(define (tokens->html tokens)
+  (apply string-append (map token->-html tokens)))
+
+(define (write-html output-path html)
+  (call-with-output-file output-path
+    (lambda (o) (display html o))
+    #:exists 'replace))
+
+(define (make-html-page body)
+  (format "<!doctype html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"utf-8\">\n    <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n    <title>Highlighted Source</title>\n    <style>~a</style>\n  </head>\n  <body>\n    <pre class=\"code\">~a</pre>\n  </body>\n</html>" CSS body))
+
+(define (main)
+  (let* ([args (current-command-line-arguments)]
+         [input (if (zero? (vector-length args)) "prueba.py" (vector-ref args 0))]
+         [source (read-file input)]
+         [tokens (tokenize-string source)]
+         [body (tokens->html tokens)]
+         [html (make-html-page body)]
+         [out (if (regexp-match #rx"\\.[^./\\]+$" input)
+                  (regexp-replace #rx"\\.[^./\\]+$" input ".html")
+                  (string-append input ".html"))])
+    (write-html out html)
+    (printf "Wrote ~a (~a tokens)\n" out (length tokens))))
+
+(when (equal? (current-directory) (current-directory))
+  (main))
