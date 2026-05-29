@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Highlighted Source</title>
+    <style>pre.code {background:#1e1b2b;color:#fff;padding:1rem;white-space:pre;overflow:auto;font-family:monospace;}
+.keyword {color:#c792ea;font-weight:bold}
+.identifier {color:#ffffff}
+.integer {color:#f78c6c}
+.float {color:#f78c6c}
+.string {color:#c3e88d}
+.comment {color:#7f848e;font-style:italic}
+.operator {color:#89ddff}
+.delimiter {color:#ff9d41}
+.whitespace {color:inherit}</style>
+  </head>
+  <body>
+    <pre class="code"><span class="string">"""
+Task Manager - Command-line task management tool
+Supports creating, listing, updating, deleting, and filtering tasks
+with priorities, tags, and due dates.
+"""</span>
+
+<span class="keyword">import</span> <span class="identifier">json</span>
+<span class="keyword">import</span> <span class="identifier">os</span>
+<span class="keyword">import</span> <span class="identifier">sys</span>
+<span class="keyword">from</span> <span class="identifier">datetime</span> <span class="keyword">import</span> <span class="identifier">datetime</span><span class="delimiter">,</span> <span class="identifier">date</span>
+<span class="keyword">from</span> <span class="identifier">typing</span> <span class="keyword">import</span> <span class="identifier">Optional</span>
+
+
+<span class="comment"># ─────────────────────────────────────────────</span>
+<span class="comment">#  Configuration</span>
+<span class="comment"># ─────────────────────────────────────────────</span>
+
+<span class="identifier">DATA_FILE</span> <span class="operator">=</span> <span class="string">"tasks.json"</span>
+<span class="identifier">DATE_FMT</span>  <span class="operator">=</span> <span class="string">"%Y-%m-%d"</span>
+
+<span class="identifier">PRIORITIES</span> <span class="operator">=</span> <span class="delimiter">{</span><span class="string">"low"</span><span class="delimiter">:</span> <span class="integer">1</span><span class="delimiter">,</span> <span class="string">"medium"</span><span class="delimiter">:</span> <span class="integer">2</span><span class="delimiter">,</span> <span class="string">"high"</span><span class="delimiter">:</span> <span class="integer">3</span><span class="delimiter">,</span> <span class="string">"critical"</span><span class="delimiter">:</span> <span class="integer">4</span><span class="delimiter">}</span>
+<span class="identifier">COLORS</span> <span class="operator">=</span> <span class="delimiter">{</span>
+    <span class="string">"reset"</span><span class="delimiter">:</span>  <span class="string">"\033[0m"</span><span class="delimiter">,</span>
+    <span class="string">"bold"</span><span class="delimiter">:</span>   <span class="string">"\033[1m"</span><span class="delimiter">,</span>
+    <span class="string">"red"</span><span class="delimiter">:</span>    <span class="string">"\033[91m"</span><span class="delimiter">,</span>
+    <span class="string">"green"</span><span class="delimiter">:</span>  <span class="string">"\033[92m"</span><span class="delimiter">,</span>
+    <span class="string">"yellow"</span><span class="delimiter">:</span> <span class="string">"\033[93m"</span><span class="delimiter">,</span>
+    <span class="string">"blue"</span><span class="delimiter">:</span>   <span class="string">"\033[94m"</span><span class="delimiter">,</span>
+    <span class="string">"cyan"</span><span class="delimiter">:</span>   <span class="string">"\033[96m"</span><span class="delimiter">,</span>
+    <span class="string">"gray"</span><span class="delimiter">:</span>   <span class="string">"\033[90m"</span><span class="delimiter">,</span>
+<span class="delimiter">}</span>
+
+<span class="identifier">PRIORITY_COLORS</span> <span class="operator">=</span> <span class="delimiter">{</span>
+    <span class="string">"low"</span><span class="delimiter">:</span>      <span class="identifier">COLORS</span><span class="delimiter">[</span><span class="string">"gray"</span><span class="delimiter">]</span><span class="delimiter">,</span>
+    <span class="string">"medium"</span><span class="delimiter">:</span>   <span class="identifier">COLORS</span><span class="delimiter">[</span><span class="string">"blue"</span><span class="delimiter">]</span><span class="delimiter">,</span>
+    <span class="string">"high"</span><span class="delimiter">:</span>     <span class="identifier">COLORS</span><span class="delimiter">[</span><span class="string">"yellow"</span><span class="delimiter">]</span><span class="delimiter">,</span>
+    <span class="string">"critical"</span><span class="delimiter">:</span> <span class="identifier">COLORS</span><span class="delimiter">[</span><span class="string">"red"</span><span class="delimiter">]</span><span class="delimiter">,</span>
+<span class="delimiter">}</span>
+
+
+<span class="keyword">def</span> <span class="identifier">c</span><span class="delimiter">(</span><span class="identifier">color</span><span class="delimiter">:</span> <span class="identifier">str</span><span class="delimiter">,</span> <span class="identifier">text</span><span class="delimiter">:</span> <span class="identifier">str</span><span class="delimiter">)</span> <span class="operator">-</span><span class="operator">&gt;</span> <span class="identifier">str</span><span class="delimiter">:</span>
+    <span class="string">"""Apply ANSI color to text."""</span>
+    <span class="keyword">return</span> <span class="identifier">f</span><span class="string">"{COLORS.get(color, '')}{text}{COLORS['reset']}"</span>
+
+
+<span class="comment"># ─────────────────────────────────────────────</span>
+<span class="comment">#  Data model</span>
+<span class="comment"># ─────────────────────────────────────────────</span>
+
+<span class="keyword">def</span> <span class="identifier">new_task</span><span class="delimiter">(</span><span class="identifier">title</span><span class="delimiter">:</span> <span class="identifier">str</span><span class="delimiter">,</span> <span class="identifier">priority</span><span class="delimiter">:</span> <span class="identifier">str</span> <span class="operator">=</span> <span class="string">"medium"</span><span class="delimiter">,</span>
+             <span class="identifier">due</span><span class="delimiter">:</span> <span class="identifier">Optional</span><span class="delimiter">[</span><span class="identifier">str</span><span class="delimiter">]</span> <span class="operator">=</span> <span class="keyword">None</span><span class="delimiter">,</span> <span class="identifier">tags</span><span class="delimiter">:</span> <span class="identifier">Optional</span><span class="delimiter">[</span><span class="identifier">list</span><span class="delimiter">]</span> <span class="operator">=</span> <span class="keyword">None</span><span class="delimiter">,</span>
+             <span class="identifier">task_id</span><span class="delimiter">:</span> <span class="identifier">Optional</span><span class="delimiter">[</span><span class="identifier">int</span><span class="delimiter">]</span> <span class="operator">=</span> <span class="keyword">None</span><span class="delimiter">)</span> <span class="operator">-</span><span class="operator">&gt;</span> <span class="identifier">dict</span><span class="delimiter">:</span>
+    <span class="string">"""Create a dictionary representing a task."""</span>
+    <span class="keyword">return</span> <span class="delimiter">{</span>
+        <span class="string">"id"</span><span class="delimiter">:</span>         <span class="identifier">task_id</span><span class="delimiter">,</span>
+        <span class="string">"title"</span><span class="delimiter">:</span>      <span class="identifier">title</span><span class="delimiter">.</span><span class="identifier">strip</span><span class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">,</span>
+        <span class="string">"priority"</span><span class="delimiter">:</span>   <span class="identifier">priority</span><span class="delimiter">.</span><span class="identifier">lower</span><span class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">,</span>
+        <span class="string">"done"</span><span class="delimiter">:</span>       <span class="keyword">False</span><span class="delimiter">,</span>
+        <span class="string">"due"</span><span class="delimiter">:</span>        <span class="identifier">due</span><span class="delimiter">,</span>
+        <span class="string">"tags"</span><span class="delimiter">:</span>       <span class="identifier">tags</span> <span class="keyword">or</span> <span class="delimiter">[</span><span class="delimiter">]</span><span class="delimiter">,</span>
+        <span class="string">"created_at"</span><span class="delimiter">:</span> <span class="identifier">datetime</span><span class="delimiter">.</span><span class="identifier">now</span><span class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">.</span><span class="identifier">strftime</span><span class="delimiter">(</span><span class="string">"%Y-%m-%d %H:%M"</span><span class="delimiter">)</span><span class="delimiter">,</span>
+    <span class="delimiter">}</span>
+
+
+<span class="comment"># ─────────────────────────────────────────────</span>
+<span class="comment">#  Persistence</span>
+<span class="comment"># ─────────────────────────────────────────────</span>
+
+<span class="keyword">def</span> <span class="identifier">load_tasks</span><span class="delimiter">(</span><span class="delimiter">)</span> <span class="operator">-</span><span class="operator">&gt;</span> <span class="identifier">list</span><span class="delimiter">:</span>
+    <span class="string">"""Load tasks from the JSON file."""</span>
+    <span class="keyword">if</span> <span class="keyword">not</span> <span class="identifier">os</span><span class="delimiter">.</span><span class="identifier">path</span><span class="delimiter">.</span><span class="identifier">exists</span><span class="delimiter">(</span><span class="identifier">DATA_FILE</span><span class="delimiter">)</span><span class="delimiter">:</span>
+        <span class="keyword">return</span> <span class="delimiter">[</span><span class="delimiter">]</span>
+    <span class="keyword">with</span> <span class="identifier">open</span><span class="delimiter">(</span><span class="identifier">DATA_FILE</span><span class="delimiter">,</span> <span class="string">"r"</span><span class="delimiter">,</span> <span class="identifier">encoding</span><span class="operator">=</span><span class="string">"utf-8"</span><span class="delimiter">)</span> <span class="keyword">as</span> <span class="identifier">f</span><span class="delimiter">:</span>
+        <span class="keyword">return</span> <span class="identifier">json</span><span class="delimiter">.</span><span class="identifier">load</span><span class="delimiter">(</span><span class="identifier">f</span><span class="delimiter">)</span>
+
+
+<span class="keyword">def</span> <span class="identifier">save_tasks</span><span class="delimiter">(</span><span class="identifier">tasks</span><span class="delimiter">:</span> <span class="identifier">list</span><span class="delimiter">)</span> <span class="operator">-</span><span class="operator">&gt;</span> <span class="keyword">None</span><span class="delimiter">:</span>
+    <span class="string">"""Save the task list to the JSON file."""</span>
+    <span class="keyword">with</span> <span class="identifier">open</span><span class="delimiter">(</span><span class="identifier">DATA_FILE</span><span class="delimiter">,</span> <span class="string">"w"</span><span class="delimiter">,</span> <span class="identifier">encoding</span><span class="operator">=</span><span class="string">"utf-8"</span><span class="delimiter">)</span> <span class="keyword">as</span> <span class="identifier">f</span><span class="delimiter">:</span>
+        <span class="identifier">json</span><span class="delimiter">.</span><span class="identifier">dump</span><span class="delimiter">(</span><span class="identifier">tasks</span><span class="delimiter">,</span> <span class="identifier">f</span><span class="delimiter">,</span> <span class="identifier">ensure_ascii</span><span class="operator">=</span><span class="keyword">False</span><span class="delimiter">,</span> <span class="identifier">indent</span><span class="operator">=</span><span class="integer">2</span><span class="delimiter">)</span>
+
+
+<span class="keyword">def</span> <span class="identifier">next_id</span><span class="delimiter">(</span><span class="identifier">tasks</span><span class="delimiter">:</span> <span class="identifier">list</span><span class="delimiter">)</span> <span class="operator">-</span><span class="operator">&gt;</span> <span class="identifier">int</span><span class="delimiter">:</span>
+    <span class="string">"""Generate the next available ID."""</span>
+    <span class="keyword">return</span> <span class="identifier">max</span><span class="delimiter">(</span><span class="delimiter">(</span><span class="identifier">t</span><span class="delimiter">[</span><span class="string">"id"</span><span class="delimiter">]</span> <span class="keyword">for</span> <span class="identifier">t</span> <span class="keyword">in</span> <span class="identifier">tasks</span><span class="delimiter">)</span><span class="delimiter">,</span> <span class="identifier">default</span><span class="operator">=</span><span class="integer">0</span><span class="delimiter">)</span> <span class="operator">+</span> <span class="integer">1</span>
+
+
+<span class="comment"># ─────────────────────────────────────────────</span>
+<span class="comment">#  CRUD operations</span>
+<span class="comment"># ─────────────────────────────────────────────</span>
+
+<span class="keyword">def</span> <span class="identifier">add_task</span><span class="delimiter">(</span><span class="identifier">title</span><span class="delimiter">:</span> <span class="identifier">str</span><span class="delimiter">,</span> <span class="identifier">priority</span><span class="delimiter">:</span> <span class="identifier">str</span> <span class="operator">=</span> <span class="string">"medium"</span><span class="delimiter">,</span>
+             <span class="identifier">due</span><span class="delimiter">:</span> <span class="identifier">Optional</span><span class="delimiter">[</span><span class="identifier">str</span><span class="delimiter">]</span> <span class="operator">=</span> <span class="keyword">None</span><span class="delimiter">,</span> <span class="identifier">tags</span><span class="delimiter">:</span> <span class="identifier">Optional</span><span class="delimiter">[</span><span class="identifier">list</span><span class="delimiter">]</span> <span class="operator">=</span> <span class="keyword">None</span><span class="delimiter">)</span> <span class="operator">-</span><span class="operator">&gt;</span> <span class="identifier">dict</span><span class="delimiter">:</span>
+    <span class="string">"""Add a new task."""</span>
+    <span class="keyword">if</span> <span class="identifier">priority</span> <span class="keyword">not</span> <span class="keyword">in</span> <span class="identifier">PRIORITIES</span><span class="delimiter">:</span>
+        <span class="keyword">raise</span> <span class="identifier">ValueError</span><span class="delimiter">(</span><span class="identifier">f</span><span class="string">"Invalid priority: '{priority}'. Use: {list(PRIORITIES)}"</span><span class="delimiter">)</span>
+    <span class="keyword">if</span> <span class="identifier">due</span><span class="delimiter">:</span>
+        <span class="keyword">try</span><span class="delimiter">:</span>
+            <span class="identifier">datetime</span><span class="delimiter">.</span><span class="identifier">strptime</span><span class="delimiter">(</span><span class="identifier">due</span><span class="delimiter">,</span> <span class="identifier">DATE_FMT</span><span class="delimiter">)</span>
+        <span class="keyword">except</span> <span class="identifier">ValueError</span><span class="delimiter">:</span>
+            <span class="keyword">raise</span> <span class="identifier">ValueError</span><span class="delimiter">(</span><span class="identifier">f</span><span class="string">"Invalid date: '{due}'. Use YYYY-MM-DD format."</span><span class="delimiter">)</span>
+
+    <span class="identifier">tasks</span> <span class="operator">=</span> <span class="identifier">load_tasks</span><span class="delimiter">(</span><span class="delimiter">)</span>
+    <span class="identifier">task</span> <span class="operator">=</span> <span class="identifier">new_task</span><span class="delimiter">(</span><span class="identifier">title</span><span class="delimiter">,</span> <span class="identifier">priority</span><span class="delimiter">,</span> <span class="identifier">due</span><span class="delimiter">,</span> <span class="identifier">tags</span><span class="delimiter">,</span> <span class="identifier">task_id</span><span class="operator">=</span><span class="identifier">next_id</span><span class="delimiter">(</span><span class="identifier">tasks</span><span class="delimiter">)</span><span class="delimiter">)</span>
+    <span class="identifier">tasks</span><span class="delimiter">.</span><span class="identifier">append</span><span class="delimiter">(</span><span class="identifier">task</span><span class="delimiter">)</span>
+    <span class="identifier">save_tasks</span><span class="delimiter">(</span><span class="identifier">tasks</span><span class="delimiter">)</span>
+    <span class="keyword">return</span> <span class="identifier">task</span>
+
+
+<span class="keyword">def</span> <span class="identifier">get_task</span><span class="delimiter">(</span><span class="identifier">task_id</span><span class="delimiter">:</span> <span class="identifier">int</span><span class="delimiter">)</span> <span class="operator">-</span><span class="operator">&gt;</span> <span class="identifier">Optional</span><span class="delimiter">[</span><span class="identifier">dict</span><span class="delimiter">]</span><span class="delimiter">:</span>
+    <span class="string">"""Retrieve a task by its ID."""</span>
+    <span class="keyword">return</span> <span class="identifier">next</span><span class="delimiter">(</span><span class="delimiter">(</span><span class="identifier">t</span> <span class="keyword">for</span> <span class="identifier">t</span> <span class="keyword">in</span> <span class="identifier">load_tasks</span><span class="delimiter">(</span><span class="delimiter">)</span> <span class="keyword">if</span> <span class="identifier">t</span><span class="delimiter">[</span><span class="string">"id"</span><span class="delimiter">]</span> <span class="operator">==</span> <span class="identifier">task_id</span><span class="delimiter">)</span><span class="delimiter">,</span> <span class="keyword">None</span><span class="delimiter">)</span>
+
+
+<span class="keyword">def</span> <span class="identifier">update_task</span><span class="delimiter">(</span><span class="identifier">task_id</span><span class="delimiter">:</span> <span class="identifier">int</span><span class="delimiter">,</span> <span class="operator">**</span><span class="identifier">kwargs</span><span class="delimiter">)</span> <span class="operator">-</span><span class="operator">&gt;</span> <span class="identifier">Optional</span><span class="delimiter">[</span><span class="identifier">dict</span><span class="delimiter">]</span><span class="delimiter">:</span>
+    <span class="string">"""Update fields of an existing task."""</span>
+    <span class="identifier">tasks</span> <span class="operator">=</span> <span class="identifier">load_tasks</span><span class="delimiter">(</span><span class="delimiter">)</span>
+    <span class="keyword">for</span> <span class="identifier">task</span> <span class="keyword">in</span> <span class="identifier">tasks</span><span class="delimiter">:</span>
+        <span class="keyword">if</span> <span class="identifier">task</span><span class="delimiter">[</span><span class="string">"id"</span><span class="delimiter">]</span> <span class="operator">==</span> <span class="identifier">task_id</span><span class="delimiter">:</span>
+            <span class="keyword">for</span> <span class="identifier">key</span><span class="delimiter">,</span> <span class="identifier">value</span> <span class="keyword">in</span> <span class="identifier">kwargs</span><span class="delimiter">.</span><span class="identifier">items</span><span class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">:</span>
+                <span class="keyword">if</span> <span class="identifier">key</span> <span class="keyword">in</span> <span class="identifier">task</span><span class="delimiter">:</span>
+                    <span class="identifier">task</span><span class="delimiter">[</span><span class="identifier">key</span><span class="delimiter">]</span> <span class="operator">=</span> <span class="identifier">value</span>
+            <span class="identifier">save_tasks</span><span class="delimiter">(</span><span class="identifier">tasks</span><span class="delimiter">)</span>
+            <span class="keyword">return</span> <span class="identifier">task</span>
+    <span class="keyword">return</span> <span class="keyword">None</span>
+
+
+<span class="keyword">def</span> <span class="identifier">delete_task</span><span class="delimiter">(</span><span class="identifier">task_id</span><span class="delimiter">:</span> <span class="identifier">int</span><span class="delimiter">)</span> <span class="operator">-</span><span class="operator">&gt;</span> <span class="identifier">bool</span><span class="delimiter">:</span>
+    <span class="string">"""Delete a task by its ID."""</span>
+    <span class="identifier">tasks</span> <span class="operator">=</span> <span class="identifier">load_tasks</span><span class="delimiter">(</span><span class="delimiter">)</span>
+    <span class="identifier">original</span> <span class="operator">=</span> <span class="identifier">len</span><span class="delimiter">(</span><span class="identifier">tasks</span><span class="delimiter">)</span>
+    <span class="identifier">tasks</span> <span class="operator">=</span> <span class="delimiter">[</span><span class="identifier">t</span> <span class="keyword">for</span> <span class="identifier">t</span> <span class="keyword">in</span> <span class="identifier">tasks</span> <span class="keyword">if</span> <span class="identifier">t</span><span class="delimiter">[</span><span class="string">"id"</span><span class="delimiter">]</span> <span class="operator">!=</span> <span class="identifier">task_id</span><span class="delimiter">]</span>
+    <span class="keyword">if</span> <span class="identifier">len</span><span class="delimiter">(</span><span class="identifier">tasks</span><span class="delimiter">)</span> <span class="operator">&lt;</span> <span class="identifier">original</span><span class="delimiter">:</span>
+        <span class="identifier">save_tasks</span><span class="delimiter">(</span><span class="identifier">tasks</span><span class="delimiter">)</span>
+        <span class="keyword">return</span> <span class="keyword">True</span>
+    <span class="keyword">return</span> <span class="keyword">False</span>
+
+
+<span class="keyword">def</span> <span class="identifier">complete_task</span><span class="delimiter">(</span><span class="identifier">task_id</span><span class="delimiter">:</span> <span class="identifier">int</span><span class="delimiter">)</span> <span class="operator">-</span><span class="operator">&gt;</span> <span class="identifier">Optional</span><span class="delimiter">[</span><span class="identifier">dict</span><span class="delimiter">]</span><span class="delimiter">:</span>
+    <span class="string">"""Mark a task as completed."""</span>
+    <span class="keyword">return</span> <span class="identifier">update_task</span><span class="delimiter">(</span><span class="identifier">task_id</span><span class="delimiter">,</span> <span class="identifier">done</span><span class="operator">=</span><span class="keyword">True</span><span class="delimiter">)</span>
+
+
+<span class="comment"># ─────────────────────────────────────────────</span>
+<span class="comment">#  Filters and search</span>
+<span class="comment"># ─────────────────────────────────────────────</span>
+
+<span class="keyword">def</span> <span class="identifier">filter_tasks</span><span class="delimiter">(</span><span class="identifier">tasks</span><span class="delimiter">:</span> <span class="identifier">list</span><span class="delimiter">,</span> <span class="operator">*</span><span class="delimiter">,</span> <span class="identifier">done</span><span class="delimiter">:</span> <span class="identifier">Optional</span><span class="delimiter">[</span><span class="identifier">bool</span><span class="delimiter">]</span> <span class="operator">=</span> <span class="keyword">None</span><span class="delimiter">,</span>
+                 <span class="identifier">priority</span><span class="delimiter">:</span> <span class="identifier">Optional</span><span class="delimiter">[</span><span class="identifier">str</span><span class="delimiter">]</span> <span class="operator">=</span> <span class="keyword">None</span><span class="delimiter">,</span> <span class="identifier">tag</span><span class="delimiter">:</span> <span class="identifier">Optional</span><span class="delimiter">[</span><span class="identifier">str</span><span class="delimiter">]</span> <span class="operator">=</span> <span class="keyword">None</span><span class="delimiter">,</span>
+                 <span class="identifier">overdue</span><span class="delimiter">:</span> <span class="identifier">bool</span> <span class="operator">=</span> <span class="keyword">False</span><span class="delimiter">)</span> <span class="operator">-</span><span class="operator">&gt;</span> <span class="identifier">list</span><span class="delimiter">:</span>
+    <span class="string">"""Filter tasks by criteria."""</span>
+    <span class="identifier">today</span> <span class="operator">=</span> <span class="identifier">date</span><span class="delimiter">.</span><span class="identifier">today</span><span class="delimiter">(</span><span class="delimiter">)</span>
+    <span class="identifier">result</span> <span class="operator">=</span> <span class="identifier">tasks</span>
+
+    <span class="keyword">if</span> <span class="identifier">done</span> <span class="keyword">is</span> <span class="keyword">not</span> <span class="keyword">None</span><span class="delimiter">:</span>
+        <span class="identifier">result</span> <span class="operator">=</span> <span class="delimiter">[</span><span class="identifier">t</span> <span class="keyword">for</span> <span class="identifier">t</span> <span class="keyword">in</span> <span class="identifier">result</span> <span class="keyword">if</span> <span class="identifier">t</span><span class="delimiter">[</span><span class="string">"done"</span><span class="delimiter">]</span> <span class="operator">==</span> <span class="identifier">done</span><span class="delimiter">]</span>
+    <span class="keyword">if</span> <span class="identifier">priority</span><span class="delimiter">:</span>
+        <span class="identifier">result</span> <span class="operator">=</span> <span class="delimiter">[</span><span class="identifier">t</span> <span class="keyword">for</span> <span class="identifier">t</span> <span class="keyword">in</span> <span class="identifier">result</span> <span class="keyword">if</span> <span class="identifier">t</span><span class="delimiter">[</span><span class="string">"priority"</span><span class="delimiter">]</span> <span class="operator">==</span> <span class="identifier">priority</span><span class="delimiter">]</span>
+    <span class="keyword">if</span> <span class="identifier">tag</span><span class="delimiter">:</span>
+        <span class="identifier">result</span> <span class="operator">=</span> <span class="delimiter">[</span><span class="identifier">t</span> <span class="keyword">for</span> <span class="identifier">t</span> <span class="keyword">in</span> <span class="identifier">result</span> <span class="keyword">if</span> <span class="identifier">tag</span> <span class="keyword">in</span> <span class="identifier">t</span><span class="delimiter">.</span><span class="identifier">get</span><span class="delimiter">(</span><span class="string">"tags"</span><span class="delimiter">,</span> <span class="delimiter">[</span><span class="delimiter">]</span><span class="delimiter">)</span><span class="delimiter">]</span>
+    <span class="keyword">if</span> <span class="identifier">overdue</span><span class="delimiter">:</span>
+        <span class="identifier">result</span> <span class="operator">=</span> <span class="delimiter">[</span>
+            <span class="identifier">t</span> <span class="keyword">for</span> <span class="identifier">t</span> <span class="keyword">in</span> <span class="identifier">result</span>
+            <span class="keyword">if</span> <span class="identifier">t</span><span class="delimiter">.</span><span class="identifier">get</span><span class="delimiter">(</span><span class="string">"due"</span><span class="delimiter">)</span> <span class="keyword">and</span> <span class="identifier">datetime</span><span class="delimiter">.</span><span class="identifier">strptime</span><span class="delimiter">(</span><span class="identifier">t</span><span class="delimiter">[</span><span class="string">"due"</span><span class="delimiter">]</span><span class="delimiter">,</span> <span class="identifier">DATE_FMT</span><span class="delimiter">)</span><span class="delimiter">.</span><span class="identifier">date</span><span class="delimiter">(</span><span class="delimiter">)</span> <span class="operator">&lt;</span> <span class="identifier">today</span> <span class="keyword">and</span> <span class="keyword">not</span> <span class="identifier">t</span><span class="delimiter">[</span><span class="string">"done"</span><span class="delimiter">]</span>
+        <span class="delimiter">]</span>
+    <span class="keyword">return</span> <span class="identifier">result</span>
+
+
+<span class="keyword">def</span> <span class="identifier">search_tasks</span><span class="delimiter">(</span><span class="identifier">query</span><span class="delimiter">:</span> <span class="identifier">str</span><span class="delimiter">)</span> <span class="operator">-</span><span class="operator">&gt;</span> <span class="identifier">list</span><span class="delimiter">:</span>
+    <span class="string">"""Search tasks whose title contains the given text."""</span>
+    <span class="identifier">q</span> <span class="operator">=</span> <span class="identifier">query</span><span class="delimiter">.</span><span class="identifier">lower</span><span class="delimiter">(</span><span class="delimiter">)</span>
+    <span class="keyword">return</span> <span class="delimiter">[</span><span class="identifier">t</span> <span class="keyword">for</span> <span class="identifier">t</span> <span class="keyword">in</span> <span class="identifier">load_tasks</span><span class="delimiter">(</span><span class="delimiter">)</span> <span class="keyword">if</span> <span class="identifier">q</span> <span class="keyword">in</span> <span class="identifier">t</span><span class="delimiter">[</span><span class="string">"title"</span><span class="delimiter">]</span><span class="delimiter">.</span><span class="identifier">lower</span><span class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">]</span>
+
+
+<span class="keyword">def</span> <span class="identifier">sort_tasks</span><span class="delimiter">(</span><span class="identifier">tasks</span><span class="delimiter">:</span> <span class="identifier">list</span><span class="delimiter">,</span> <span class="identifier">by</span><span class="delimiter">:</span> <span class="identifier">str</span> <span class="operator">=</span> <span class="string">"priority"</span><span class="delimiter">)</span> <span class="operator">-</span><span class="operator">&gt;</span> <span class="identifier">list</span><span class="delimiter">:</span>
+    <span class="string">"""Sort tasks. Criteria: 'priority', 'due', 'id'."""</span>
+    <span class="keyword">if</span> <span class="identifier">by</span> <span class="operator">==</span> <span class="string">"priority"</span><span class="delimiter">:</span>
+        <span class="keyword">return</span> <span class="identifier">sorted</span><span class="delimiter">(</span><span class="identifier">tasks</span><span class="delimiter">,</span> <span class="identifier">key</span><span class="operator">=</span><span class="keyword">lambda</span> <span class="identifier">t</span><span class="delimiter">:</span> <span class="identifier">PRIORITIES</span><span class="delimiter">.</span><span class="identifier">get</span><span class="delimiter">(</span><span class="identifier">t</span><span class="delimiter">[</span><span class="string">"priority"</span><span class="delimiter">]</span><span class="delimiter">,</span> <span class="integer">0</span><span class="delimiter">)</span><span class="delimiter">,</span> <span class="identifier">reverse</span><span class="operator">=</span><span class="keyword">True</span><span class="delimiter">)</span>
+    <span class="keyword">if</span> <span class="identifier">by</span> <span class="operator">==</span> <span class="string">"due"</span><span class="delimiter">:</span>
+        <span class="keyword">return</span> <span class="identifier">sorted</span><span class="delimiter">(</span><span class="identifier">tasks</span><span class="delimiter">,</span> <span class="identifier">key</span><span class="operator">=</span><span class="keyword">lambda</span> <span class="identifier">t</span><span class="delimiter">:</span> <span class="identifier">t</span><span class="delimiter">.</span><span class="identifier">get</span><span class="delimiter">(</span><span class="string">"due"</span><span class="delimiter">)</span> <span class="keyword">or</span> <span class="string">"9999-99-99"</span><span class="delimiter">)</span>
+    <span class="keyword">return</span> <span class="identifier">sorted</span><span class="delimiter">(</span><span class="identifier">tasks</span><span class="delimiter">,</span> <span class="identifier">key</span><span class="operator">=</span><span class="keyword">lambda</span> <span class="identifier">t</span><span class="delimiter">:</span> <span class="identifier">t</span><span class="delimiter">[</span><span class="string">"id"</span><span class="delimiter">]</span><span class="delimiter">)</span>
+
+
+<span class="comment"># ─────────────────────────────────────────────</span>
+<span class="comment">#  Display</span>
+<span class="comment"># ─────────────────────────────────────────────</span>
+
+<span class="keyword">def</span> <span class="identifier">format_due</span><span class="delimiter">(</span><span class="identifier">due</span><span class="delimiter">:</span> <span class="identifier">Optional</span><span class="delimiter">[</span><span class="identifier">str</span><span class="delimiter">]</span><span class="delimiter">)</span> <span class="operator">-</span><span class="operator">&gt;</span> <span class="identifier">str</span><span class="delimiter">:</span>
+    <span class="string">"""Format the due date with color based on urgency."""</span>
+    <span class="keyword">if</span> <span class="keyword">not</span> <span class="identifier">due</span><span class="delimiter">:</span>
+        <span class="keyword">return</span> <span class="identifier">c</span><span class="delimiter">(</span><span class="string">"gray"</span><span class="delimiter">,</span> <span class="string">"no date"</span><span class="delimiter">)</span>
+    <span class="identifier">due_date</span> <span class="operator">=</span> <span class="identifier">datetime</span><span class="delimiter">.</span><span class="identifier">strptime</span><span class="delimiter">(</span><span class="identifier">due</span><span class="delimiter">,</span> <span class="identifier">DATE_FMT</span><span class="delimiter">)</span><span class="delimiter">.</span><span class="identifier">date</span><span class="delimiter">(</span><span class="delimiter">)</span>
+    <span class="identifier">today</span> <span class="operator">=</span> <span class="identifier">date</span><span class="delimiter">.</span><span class="identifier">today</span><span class="delimiter">(</span><span class="delimiter">)</span>
+    <span class="identifier">delta</span> <span class="operator">=</span> <span class="delimiter">(</span><span class="identifier">due_date</span> <span class="operator">-</span> <span class="identifier">today</span><span class="delimiter">)</span><span class="delimiter">.</span><span class="identifier">days</span>
+    <span class="keyword">if</span> <span class="identifier">delta</span> <span class="operator">&lt;</span> <span class="integer">0</span><span class="delimiter">:</span>
+        <span class="keyword">return</span> <span class="identifier">c</span><span class="delimiter">(</span><span class="string">"red"</span><span class="delimiter">,</span> <span class="identifier">f</span><span class="string">"⚠ {due} (overdue)"</span><span class="delimiter">)</span>
+    <span class="keyword">if</span> <span class="identifier">delta</span> <span class="operator">==</span> <span class="integer">0</span><span class="delimiter">:</span>
+        <span class="keyword">return</span> <span class="identifier">c</span><span class="delimiter">(</span><span class="string">"yellow"</span><span class="delimiter">,</span> <span class="identifier">f</span><span class="string">"🔥 {due} (today)"</span><span class="delimiter">)</span>
+    <span class="keyword">if</span> <span class="identifier">delta</span> <span class="operator">&lt;=</span> <span class="integer">3</span><span class="delimiter">:</span>
+        <span class="keyword">return</span> <span class="identifier">c</span><span class="delimiter">(</span><span class="string">"yellow"</span><span class="delimiter">,</span> <span class="identifier">f</span><span class="string">"⏰ {due} ({delta}d)"</span><span class="delimiter">)</span>
+    <span class="keyword">return</span> <span class="identifier">c</span><span class="delimiter">(</span><span class="string">"green"</span><span class="delimiter">,</span> <span class="identifier">due</span><span class="delimiter">)</span>
+
+
+<span class="keyword">def</span> <span class="identifier">print_task</span><span class="delimiter">(</span><span class="identifier">task</span><span class="delimiter">:</span> <span class="identifier">dict</span><span class="delimiter">,</span> <span class="identifier">verbose</span><span class="delimiter">:</span> <span class="identifier">bool</span> <span class="operator">=</span> <span class="keyword">False</span><span class="delimiter">)</span> <span class="operator">-</span><span class="operator">&gt;</span> <span class="keyword">None</span><span class="delimiter">:</span>
+    <span class="string">"""Print a formatted task."""</span>
+    <span class="identifier">status</span> <span class="operator">=</span> <span class="identifier">c</span><span class="delimiter">(</span><span class="string">"green"</span><span class="delimiter">,</span> <span class="string">"✓"</span><span class="delimiter">)</span> <span class="keyword">if</span> <span class="identifier">task</span><span class="delimiter">[</span><span class="string">"done"</span><span class="delimiter">]</span> <span class="keyword">else</span> <span class="identifier">c</span><span class="delimiter">(</span><span class="string">"gray"</span><span class="delimiter">,</span> <span class="string">"○"</span><span class="delimiter">)</span>
+    <span class="identifier">pri_color</span> <span class="operator">=</span> <span class="identifier">PRIORITY_COLORS</span><span class="delimiter">.</span><span class="identifier">get</span><span class="delimiter">(</span><span class="identifier">task</span><span class="delimiter">[</span><span class="string">"priority"</span><span class="delimiter">]</span><span class="delimiter">,</span> <span class="string">""</span><span class="delimiter">)</span>
+    <span class="identifier">pri_label</span> <span class="operator">=</span> <span class="identifier">f</span><span class="string">"{pri_color}[{task['priority']:^8}]{COLORS['reset']}"</span>
+    <span class="identifier">title</span> <span class="operator">=</span> <span class="identifier">c</span><span class="delimiter">(</span><span class="string">"gray"</span><span class="delimiter">,</span> <span class="identifier">task</span><span class="delimiter">[</span><span class="string">"title"</span><span class="delimiter">]</span><span class="delimiter">)</span> <span class="keyword">if</span> <span class="identifier">task</span><span class="delimiter">[</span><span class="string">"done"</span><span class="delimiter">]</span> <span class="keyword">else</span> <span class="identifier">c</span><span class="delimiter">(</span><span class="string">"bold"</span><span class="delimiter">,</span> <span class="identifier">task</span><span class="delimiter">[</span><span class="string">"title"</span><span class="delimiter">]</span><span class="delimiter">)</span>
+    <span class="identifier">tags</span> <span class="operator">=</span> <span class="string">"  "</span> <span class="operator">+</span> <span class="string">" "</span><span class="delimiter">.</span><span class="identifier">join</span><span class="delimiter">(</span><span class="identifier">c</span><span class="delimiter">(</span><span class="string">"cyan"</span><span class="delimiter">,</span> <span class="identifier">f</span><span class="string">"#{t}"</span><span class="delimiter">)</span> <span class="keyword">for</span> <span class="identifier">t</span> <span class="keyword">in</span> <span class="identifier">task</span><span class="delimiter">[</span><span class="string">"tags"</span><span class="delimiter">]</span><span class="delimiter">)</span> <span class="keyword">if</span> <span class="identifier">task</span><span class="delimiter">[</span><span class="string">"tags"</span><span class="delimiter">]</span> <span class="keyword">else</span> <span class="string">""</span>
+
+    <span class="identifier">print</span><span class="delimiter">(</span><span class="identifier">f</span><span class="string">"  {status} {c('gray', f'#{task[\"id\"]:03d}')}  {pri_label}  {title}{tags}"</span><span class="delimiter">)</span>
+
+    <span class="keyword">if</span> <span class="identifier">verbose</span><span class="delimiter">:</span>
+        <span class="identifier">print</span><span class="delimiter">(</span><span class="identifier">f</span><span class="string">"       📅 Due date:  {format_due(task.get('due'))}"</span><span class="delimiter">)</span>
+        <span class="identifier">print</span><span class="delimiter">(</span><span class="identifier">f</span><span class="string">"       🕐 Created:   {c('gray', task['created_at'])}"</span><span class="delimiter">)</span>
+
+
+<span class="keyword">def</span> <span class="identifier">print_task_list</span><span class="delimiter">(</span><span class="identifier">tasks</span><span class="delimiter">:</span> <span class="identifier">list</span><span class="delimiter">,</span> <span class="identifier">title</span><span class="delimiter">:</span> <span class="identifier">str</span> <span class="operator">=</span> <span class="string">"Tasks"</span><span class="delimiter">,</span> <span class="identifier">verbose</span><span class="delimiter">:</span> <span class="identifier">bool</span> <span class="operator">=</span> <span class="keyword">False</span><span class="delimiter">)</span> <span class="operator">-</span><span class="operator">&gt;</span> <span class="keyword">None</span><span class="delimiter">:</span>
+    <span class="string">"""Print a task list with a header."""</span>
+    <span class="identifier">print</span><span class="delimiter">(</span><span class="delimiter">)</span>
+    <span class="identifier">print</span><span class="delimiter">(</span><span class="identifier">c</span><span class="delimiter">(</span><span class="string">"bold"</span><span class="delimiter">,</span> <span class="identifier">f</span><span class="string">"  ── {title} ({len(tasks)}) ──"</span><span class="delimiter">)</span><span class="delimiter">)</span>
+    <span class="identifier">print</span><span class="delimiter">(</span><span class="delimiter">)</span>
+    <span class="keyword">if</span> <span class="keyword">not</span> <span class="identifier">tasks</span><span class="delimiter">:</span>
+        <span class="identifier">print</span><span class="delimiter">(</span><span class="identifier">c</span><span class="delimiter">(</span><span class="string">"gray"</span><span class="delimiter">,</span> <span class="string">"  (no tasks found)"</span><span class="delimiter">)</span><span class="delimiter">)</span>
+    <span class="keyword">else</span><span class="delimiter">:</span>
+        <span class="keyword">for</span> <span class="identifier">task</span> <span class="keyword">in</span> <span class="identifier">tasks</span><span class="delimiter">:</span>
+            <span class="identifier">print_task</span><span class="delimiter">(</span><span class="identifier">task</span><span class="delimiter">,</span> <span class="identifier">verbose</span><span class="operator">=</span><span class="identifier">verbose</span><span class="delimiter">)</span>
+    <span class="identifier">print</span><span class="delimiter">(</span><span class="delimiter">)</span>
+
+
+<span class="keyword">def</span> <span class="identifier">print_stats</span><span class="delimiter">(</span><span class="identifier">tasks</span><span class="delimiter">:</span> <span class="identifier">list</span><span class="delimiter">)</span> <span class="operator">-</span><span class="operator">&gt;</span> <span class="keyword">None</span><span class="delimiter">:</span>
+    <span class="string">"""Display task manager statistics."""</span>
+    <span class="identifier">total</span>   <span class="operator">=</span> <span class="identifier">len</span><span class="delimiter">(</span><span class="identifier">tasks</span><span class="delimiter">)</span>
+    <span class="identifier">done</span>    <span class="operator">=</span> <span class="identifier">sum</span><span class="delimiter">(</span><span class="integer">1</span> <span class="keyword">for</span> <span class="identifier">t</span> <span class="keyword">in</span> <span class="identifier">tasks</span> <span class="keyword">if</span> <span class="identifier">t</span><span class="delimiter">[</span><span class="string">"done"</span><span class="delimiter">]</span><span class="delimiter">)</span>
+    <span class="identifier">pending</span> <span class="operator">=</span> <span class="identifier">total</span> <span class="operator">-</span> <span class="identifier">done</span>
+    <span class="identifier">overdue</span> <span class="operator">=</span> <span class="identifier">len</span><span class="delimiter">(</span><span class="identifier">filter_tasks</span><span class="delimiter">(</span><span class="identifier">tasks</span><span class="delimiter">,</span> <span class="identifier">overdue</span><span class="operator">=</span><span class="keyword">True</span><span class="delimiter">)</span><span class="delimiter">)</span>
+    <span class="identifier">by_pri</span>  <span class="operator">=</span> <span class="delimiter">{</span><span class="identifier">p</span><span class="delimiter">:</span> <span class="identifier">sum</span><span class="delimiter">(</span><span class="integer">1</span> <span class="keyword">for</span> <span class="identifier">t</span> <span class="keyword">in</span> <span class="identifier">tasks</span> <span class="keyword">if</span> <span class="identifier">t</span><span class="delimiter">[</span><span class="string">"priority"</span><span class="delimiter">]</span> <span class="operator">==</span> <span class="identifier">p</span> <span class="keyword">and</span> <span class="keyword">not</span> <span class="identifier">t</span><span class="delimiter">[</span><span class="string">"done"</span><span class="delimiter">]</span><span class="delimiter">)</span>
+               <span class="keyword">for</span> <span class="identifier">p</span> <span class="keyword">in</span> <span class="identifier">PRIORITIES</span><span class="delimiter">}</span>
+
+    <span class="identifier">print</span><span class="delimiter">(</span><span class="delimiter">)</span>
+    <span class="identifier">print</span><span class="delimiter">(</span><span class="identifier">c</span><span class="delimiter">(</span><span class="string">"bold"</span><span class="delimiter">,</span> <span class="string">"  ── Statistics ──"</span><span class="delimiter">)</span><span class="delimiter">)</span>
+    <span class="identifier">print</span><span class="delimiter">(</span><span class="delimiter">)</span>
+    <span class="identifier">print</span><span class="delimiter">(</span><span class="identifier">f</span><span class="string">"  Total:     {total}"</span><span class="delimiter">)</span>
+    <span class="identifier">print</span><span class="delimiter">(</span><span class="identifier">f</span><span class="string">"  Completed: {c('green', str(done))}"</span><span class="delimiter">)</span>
+    <span class="identifier">print</span><span class="delimiter">(</span><span class="identifier">f</span><span class="string">"  Pending:   {c('yellow', str(pending))}"</span><span class="delimiter">)</span>
+    <span class="identifier">print</span><span class="delimiter">(</span><span class="identifier">f</span><span class="string">"  Overdue:   {c('red', str(overdue))}"</span><span class="delimiter">)</span>
+    <span class="identifier">print</span><span class="delimiter">(</span><span class="delimiter">)</span>
+    <span class="identifier">print</span><span class="delimiter">(</span><span class="string">"  By priority (pending):"</span><span class="delimiter">)</span>
+    <span class="keyword">for</span> <span class="identifier">p</span><span class="delimiter">,</span> <span class="identifier">count</span> <span class="keyword">in</span> <span class="identifier">by_pri</span><span class="delimiter">.</span><span class="identifier">items</span><span class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">:</span>
+        <span class="identifier">bar</span> <span class="operator">=</span> <span class="string">"█"</span> <span class="operator">*</span> <span class="identifier">count</span>
+        <span class="identifier">col</span> <span class="operator">=</span> <span class="identifier">PRIORITY_COLORS</span><span class="delimiter">.</span><span class="identifier">get</span><span class="delimiter">(</span><span class="identifier">p</span><span class="delimiter">,</span> <span class="string">""</span><span class="delimiter">)</span>
+        <span class="identifier">print</span><span class="delimiter">(</span><span class="identifier">f</span><span class="string">"    {p:10} {col}{bar} {count}{COLORS['reset']}"</span><span class="delimiter">)</span>
+    <span class="identifier">print</span><span class="delimiter">(</span><span class="delimiter">)</span>
+
+
+<span class="comment"># ─────────────────────────────────────────────</span>
+<span class="comment">#  Command-line interface</span>
+<span class="comment"># ─────────────────────────────────────────────</span>
+
+<span class="identifier">HELP_TEXT</span> <span class="operator">=</span> <span class="identifier">f</span><span class="string">"""
+{c('bold', 'Task Manager — Available commands')}
+
+  {c('cyan', 'add')} &lt;title&gt; [options]       Create a new task
+    --priority, -p &lt;level&gt;    low | medium | high | critical  (default: medium)
+    --due,      -d &lt;date&gt;     Due date in YYYY-MM-DD format
+    --tags,     -t &lt;tags&gt;     Comma-separated tags
+
+  {c('cyan', 'list')} [options]              List tasks
+    --all, -a                 Include completed tasks
+    --priority, -p &lt;level&gt;    Filter by priority
+    --tag,      -t &lt;tag&gt;      Filter by tag
+    --overdue                 Show only overdue tasks
+    --sort &lt;criteria&gt;         id | priority | due  (default: priority)
+    --verbose, -v             Show full details
+
+  {c('cyan', 'done')} &lt;id&gt;                   Mark task as completed
+  {c('cyan', 'delete')} &lt;id&gt;                 Delete a task
+  {c('cyan', 'search')} &lt;text&gt;               Search task titles
+  {c('cyan', 'stats')}                       Show statistics
+  {c('cyan', 'help')}                        Show this help message
+"""</span>
+
+
+<span class="keyword">def</span> <span class="identifier">parse_args</span><span class="delimiter">(</span><span class="identifier">args</span><span class="delimiter">:</span> <span class="identifier">list</span><span class="delimiter">)</span> <span class="operator">-</span><span class="operator">&gt;</span> <span class="identifier">tuple</span><span class="delimiter">:</span>
+    <span class="string">"""Simple argument parser with no external dependencies."""</span>
+    <span class="identifier">opts</span> <span class="operator">=</span> <span class="delimiter">{</span><span class="delimiter">}</span>
+    <span class="identifier">positional</span> <span class="operator">=</span> <span class="delimiter">[</span><span class="delimiter">]</span>
+    <span class="identifier">i</span> <span class="operator">=</span> <span class="integer">0</span>
+    <span class="keyword">while</span> <span class="identifier">i</span> <span class="operator">&lt;</span> <span class="identifier">len</span><span class="delimiter">(</span><span class="identifier">args</span><span class="delimiter">)</span><span class="delimiter">:</span>
+        <span class="identifier">a</span> <span class="operator">=</span> <span class="identifier">args</span><span class="delimiter">[</span><span class="identifier">i</span><span class="delimiter">]</span>
+        <span class="keyword">if</span> <span class="identifier">a</span><span class="delimiter">.</span><span class="identifier">startswith</span><span class="delimiter">(</span><span class="string">"--"</span><span class="delimiter">)</span><span class="delimiter">:</span>
+            <span class="identifier">key</span> <span class="operator">=</span> <span class="identifier">a</span><span class="delimiter">[</span><span class="integer">2</span><span class="delimiter">:</span><span class="delimiter">]</span>
+            <span class="keyword">if</span> <span class="identifier">i</span> <span class="operator">+</span> <span class="integer">1</span> <span class="operator">&lt;</span> <span class="identifier">len</span><span class="delimiter">(</span><span class="identifier">args</span><span class="delimiter">)</span> <span class="keyword">and</span> <span class="keyword">not</span> <span class="identifier">args</span><span class="delimiter">[</span><span class="identifier">i</span> <span class="operator">+</span> <span class="integer">1</span><span class="delimiter">]</span><span class="delimiter">.</span><span class="identifier">startswith</span><span class="delimiter">(</span><span class="string">"-"</span><span class="delimiter">)</span><span class="delimiter">:</span>
+                <span class="identifier">opts</span><span class="delimiter">[</span><span class="identifier">key</span><span class="delimiter">]</span> <span class="operator">=</span> <span class="identifier">args</span><span class="delimiter">[</span><span class="identifier">i</span> <span class="operator">+</span> <span class="integer">1</span><span class="delimiter">]</span><span class="delimiter">;</span> <span class="identifier">i</span> <span class="operator">+=</span> <span class="integer">2</span>
+            <span class="keyword">else</span><span class="delimiter">:</span>
+                <span class="identifier">opts</span><span class="delimiter">[</span><span class="identifier">key</span><span class="delimiter">]</span> <span class="operator">=</span> <span class="keyword">True</span><span class="delimiter">;</span> <span class="identifier">i</span> <span class="operator">+=</span> <span class="integer">1</span>
+        <span class="keyword">elif</span> <span class="identifier">a</span><span class="delimiter">.</span><span class="identifier">startswith</span><span class="delimiter">(</span><span class="string">"-"</span><span class="delimiter">)</span> <span class="keyword">and</span> <span class="identifier">len</span><span class="delimiter">(</span><span class="identifier">a</span><span class="delimiter">)</span> <span class="operator">==</span> <span class="integer">2</span><span class="delimiter">:</span>
+            <span class="identifier">short_map</span> <span class="operator">=</span> <span class="delimiter">{</span><span class="string">"p"</span><span class="delimiter">:</span> <span class="string">"priority"</span><span class="delimiter">,</span> <span class="string">"d"</span><span class="delimiter">:</span> <span class="string">"due"</span><span class="delimiter">,</span> <span class="string">"t"</span><span class="delimiter">:</span> <span class="string">"tags"</span><span class="delimiter">,</span>
+                         <span class="string">"a"</span><span class="delimiter">:</span> <span class="string">"all"</span><span class="delimiter">,</span> <span class="string">"v"</span><span class="delimiter">:</span> <span class="string">"verbose"</span><span class="delimiter">}</span>
+            <span class="identifier">key</span> <span class="operator">=</span> <span class="identifier">short_map</span><span class="delimiter">.</span><span class="identifier">get</span><span class="delimiter">(</span><span class="identifier">a</span><span class="delimiter">[</span><span class="integer">1</span><span class="delimiter">]</span><span class="delimiter">,</span> <span class="identifier">a</span><span class="delimiter">[</span><span class="integer">1</span><span class="delimiter">]</span><span class="delimiter">)</span>
+            <span class="keyword">if</span> <span class="identifier">i</span> <span class="operator">+</span> <span class="integer">1</span> <span class="operator">&lt;</span> <span class="identifier">len</span><span class="delimiter">(</span><span class="identifier">args</span><span class="delimiter">)</span> <span class="keyword">and</span> <span class="keyword">not</span> <span class="identifier">args</span><span class="delimiter">[</span><span class="identifier">i</span> <span class="operator">+</span> <span class="integer">1</span><span class="delimiter">]</span><span class="delimiter">.</span><span class="identifier">startswith</span><span class="delimiter">(</span><span class="string">"-"</span><span class="delimiter">)</span><span class="delimiter">:</span>
+                <span class="identifier">opts</span><span class="delimiter">[</span><span class="identifier">key</span><span class="delimiter">]</span> <span class="operator">=</span> <span class="identifier">args</span><span class="delimiter">[</span><span class="identifier">i</span> <span class="operator">+</span> <span class="integer">1</span><span class="delimiter">]</span><span class="delimiter">;</span> <span class="identifier">i</span> <span class="operator">+=</span> <span class="integer">2</span>
+            <span class="keyword">else</span><span class="delimiter">:</span>
+                <span class="identifier">opts</span><span class="delimiter">[</span><span class="identifier">key</span><span class="delimiter">]</span> <span class="operator">=</span> <span class="keyword">True</span><span class="delimiter">;</span> <span class="identifier">i</span> <span class="operator">+=</span> <span class="integer">1</span>
+        <span class="keyword">else</span><span class="delimiter">:</span>
+            <span class="identifier">positional</span><span class="delimiter">.</span><span class="identifier">append</span><span class="delimiter">(</span><span class="identifier">a</span><span class="delimiter">)</span><span class="delimiter">;</span> <span class="identifier">i</span> <span class="operator">+=</span> <span class="integer">1</span>
+    <span class="keyword">return</span> <span class="identifier">positional</span><span class="delimiter">,</span> <span class="identifier">opts</span>
+
+
+<span class="keyword">def</span> <span class="identifier">run</span><span class="delimiter">(</span><span class="identifier">argv</span><span class="delimiter">:</span> <span class="identifier">list</span><span class="delimiter">)</span> <span class="operator">-</span><span class="operator">&gt;</span> <span class="keyword">None</span><span class="delimiter">:</span>
+    <span class="string">"""Main entry point."""</span>
+    <span class="keyword">if</span> <span class="identifier">len</span><span class="delimiter">(</span><span class="identifier">argv</span><span class="delimiter">)</span> <span class="operator">&lt;</span> <span class="integer">2</span><span class="delimiter">:</span>
+        <span class="identifier">print</span><span class="delimiter">(</span><span class="identifier">HELP_TEXT</span><span class="delimiter">)</span>
+        <span class="keyword">return</span>
+
+    <span class="identifier">cmd</span>  <span class="operator">=</span> <span class="identifier">argv</span><span class="delimiter">[</span><span class="integer">1</span><span class="delimiter">]</span><span class="delimiter">.</span><span class="identifier">lower</span><span class="delimiter">(</span><span class="delimiter">)</span>
+    <span class="identifier">rest</span> <span class="operator">=</span> <span class="identifier">argv</span><span class="delimiter">[</span><span class="integer">2</span><span class="delimiter">:</span><span class="delimiter">]</span>
+    <span class="identifier">pos</span><span class="delimiter">,</span> <span class="identifier">opts</span> <span class="operator">=</span> <span class="identifier">parse_args</span><span class="delimiter">(</span><span class="identifier">rest</span><span class="delimiter">)</span>
+
+    <span class="comment"># ── add ──────────────────────────────────</span>
+    <span class="keyword">if</span> <span class="identifier">cmd</span> <span class="operator">==</span> <span class="string">"add"</span><span class="delimiter">:</span>
+        <span class="keyword">if</span> <span class="keyword">not</span> <span class="identifier">pos</span><span class="delimiter">:</span>
+            <span class="identifier">print</span><span class="delimiter">(</span><span class="identifier">c</span><span class="delimiter">(</span><span class="string">"red"</span><span class="delimiter">,</span> <span class="string">"  Error: you must provide a title."</span><span class="delimiter">)</span><span class="delimiter">)</span><span class="delimiter">;</span> <span class="keyword">return</span>
+        <span class="identifier">title</span>    <span class="operator">=</span> <span class="string">" "</span><span class="delimiter">.</span><span class="identifier">join</span><span class="delimiter">(</span><span class="identifier">pos</span><span class="delimiter">)</span>
+        <span class="identifier">priority</span> <span class="operator">=</span> <span class="identifier">opts</span><span class="delimiter">.</span><span class="identifier">get</span><span class="delimiter">(</span><span class="string">"priority"</span><span class="delimiter">,</span> <span class="string">"medium"</span><span class="delimiter">)</span>
+        <span class="identifier">due</span>      <span class="operator">=</span> <span class="identifier">opts</span><span class="delimiter">.</span><span class="identifier">get</span><span class="delimiter">(</span><span class="string">"due"</span><span class="delimiter">)</span>
+        <span class="identifier">tags_raw</span> <span class="operator">=</span> <span class="identifier">opts</span><span class="delimiter">.</span><span class="identifier">get</span><span class="delimiter">(</span><span class="string">"tags"</span><span class="delimiter">)</span>
+        <span class="identifier">tags</span>     <span class="operator">=</span> <span class="delimiter">[</span><span class="identifier">t</span><span class="delimiter">.</span><span class="identifier">strip</span><span class="delimiter">(</span><span class="delimiter">)</span> <span class="keyword">for</span> <span class="identifier">t</span> <span class="keyword">in</span> <span class="identifier">tags_raw</span><span class="delimiter">.</span><span class="identifier">split</span><span class="delimiter">(</span><span class="string">","</span><span class="delimiter">)</span><span class="delimiter">]</span> <span class="keyword">if</span> <span class="identifier">tags_raw</span> <span class="keyword">else</span> <span class="delimiter">[</span><span class="delimiter">]</span>
+        <span class="keyword">try</span><span class="delimiter">:</span>
+            <span class="identifier">task</span> <span class="operator">=</span> <span class="identifier">add_task</span><span class="delimiter">(</span><span class="identifier">title</span><span class="delimiter">,</span> <span class="identifier">priority</span><span class="delimiter">,</span> <span class="identifier">due</span><span class="delimiter">,</span> <span class="identifier">tags</span><span class="delimiter">)</span>
+            <span class="identifier">print</span><span class="delimiter">(</span><span class="identifier">c</span><span class="delimiter">(</span><span class="string">"green"</span><span class="delimiter">,</span> <span class="identifier">f</span><span class="string">"\n  ✓ Task #{task['id']} created: {task['title']}\n"</span><span class="delimiter">)</span><span class="delimiter">)</span>
+        <span class="keyword">except</span> <span class="identifier">ValueError</span> <span class="keyword">as</span> <span class="identifier">e</span><span class="delimiter">:</span>
+            <span class="identifier">print</span><span class="delimiter">(</span><span class="identifier">c</span><span class="delimiter">(</span><span class="string">"red"</span><span class="delimiter">,</span> <span class="identifier">f</span><span class="string">"\n  Error: {e}\n"</span><span class="delimiter">)</span><span class="delimiter">)</span>
+
+    <span class="comment"># ── list ─────────────────────────────────</span>
+    <span class="keyword">elif</span> <span class="identifier">cmd</span> <span class="operator">==</span> <span class="string">"list"</span><span class="delimiter">:</span>
+        <span class="identifier">tasks</span> <span class="operator">=</span> <span class="identifier">load_tasks</span><span class="delimiter">(</span><span class="delimiter">)</span>
+        <span class="identifier">include_done</span> <span class="operator">=</span> <span class="string">"all"</span> <span class="keyword">in</span> <span class="identifier">opts</span>
+        <span class="keyword">if</span> <span class="keyword">not</span> <span class="identifier">include_done</span><span class="delimiter">:</span>
+            <span class="identifier">tasks</span> <span class="operator">=</span> <span class="identifier">filter_tasks</span><span class="delimiter">(</span><span class="identifier">tasks</span><span class="delimiter">,</span> <span class="identifier">done</span><span class="operator">=</span><span class="keyword">False</span><span class="delimiter">)</span>
+        <span class="keyword">if</span> <span class="string">"priority"</span> <span class="keyword">in</span> <span class="identifier">opts</span><span class="delimiter">:</span>
+            <span class="identifier">tasks</span> <span class="operator">=</span> <span class="identifier">filter_tasks</span><span class="delimiter">(</span><span class="identifier">tasks</span><span class="delimiter">,</span> <span class="identifier">priority</span><span class="operator">=</span><span class="identifier">opts</span><span class="delimiter">[</span><span class="string">"priority"</span><span class="delimiter">]</span><span class="delimiter">)</span>
+        <span class="keyword">if</span> <span class="string">"tag"</span> <span class="keyword">in</span> <span class="identifier">opts</span><span class="delimiter">:</span>
+            <span class="identifier">tasks</span> <span class="operator">=</span> <span class="identifier">filter_tasks</span><span class="delimiter">(</span><span class="identifier">tasks</span><span class="delimiter">,</span> <span class="identifier">tag</span><span class="operator">=</span><span class="identifier">opts</span><span class="delimiter">[</span><span class="string">"tag"</span><span class="delimiter">]</span><span class="delimiter">)</span>
+        <span class="keyword">if</span> <span class="string">"overdue"</span> <span class="keyword">in</span> <span class="identifier">opts</span><span class="delimiter">:</span>
+            <span class="identifier">tasks</span> <span class="operator">=</span> <span class="identifier">filter_tasks</span><span class="delimiter">(</span><span class="identifier">tasks</span><span class="delimiter">,</span> <span class="identifier">overdue</span><span class="operator">=</span><span class="keyword">True</span><span class="delimiter">)</span>
+        <span class="identifier">sort_by</span> <span class="operator">=</span> <span class="identifier">opts</span><span class="delimiter">.</span><span class="identifier">get</span><span class="delimiter">(</span><span class="string">"sort"</span><span class="delimiter">,</span> <span class="string">"priority"</span><span class="delimiter">)</span>
+        <span class="identifier">tasks</span> <span class="operator">=</span> <span class="identifier">sort_tasks</span><span class="delimiter">(</span><span class="identifier">tasks</span><span class="delimiter">,</span> <span class="identifier">by</span><span class="operator">=</span><span class="identifier">sort_by</span><span class="delimiter">)</span>
+        <span class="identifier">label</span> <span class="operator">=</span> <span class="string">"All tasks"</span> <span class="keyword">if</span> <span class="identifier">include_done</span> <span class="keyword">else</span> <span class="string">"Pending tasks"</span>
+        <span class="identifier">print_task_list</span><span class="delimiter">(</span><span class="identifier">tasks</span><span class="delimiter">,</span> <span class="identifier">title</span><span class="operator">=</span><span class="identifier">label</span><span class="delimiter">,</span> <span class="identifier">verbose</span><span class="operator">=</span><span class="string">"verbose"</span> <span class="keyword">in</span> <span class="identifier">opts</span><span class="delimiter">)</span>
+
+    <span class="comment"># ── done ─────────────────────────────────</span>
+    <span class="keyword">elif</span> <span class="identifier">cmd</span> <span class="operator">==</span> <span class="string">"done"</span><span class="delimiter">:</span>
+        <span class="keyword">if</span> <span class="keyword">not</span> <span class="identifier">pos</span><span class="delimiter">:</span>
+            <span class="identifier">print</span><span class="delimiter">(</span><span class="identifier">c</span><span class="delimiter">(</span><span class="string">"red"</span><span class="delimiter">,</span> <span class="string">"  Error: provide the task ID."</span><span class="delimiter">)</span><span class="delimiter">)</span><span class="delimiter">;</span> <span class="keyword">return</span>
+        <span class="identifier">task</span> <span class="operator">=</span> <span class="identifier">complete_task</span><span class="delimiter">(</span><span class="identifier">int</span><span class="delimiter">(</span><span class="identifier">pos</span><span class="delimiter">[</span><span class="integer">0</span><span class="delimiter">]</span><span class="delimiter">)</span><span class="delimiter">)</span>
+        <span class="keyword">if</span> <span class="identifier">task</span><span class="delimiter">:</span>
+            <span class="identifier">print</span><span class="delimiter">(</span><span class="identifier">c</span><span class="delimiter">(</span><span class="string">"green"</span><span class="delimiter">,</span> <span class="identifier">f</span><span class="string">"\n  ✓ Task #{task['id']} marked as completed.\n"</span><span class="delimiter">)</span><span class="delimiter">)</span>
+        <span class="keyword">else</span><span class="delimiter">:</span>
+            <span class="identifier">print</span><span class="delimiter">(</span><span class="identifier">c</span><span class="delimiter">(</span><span class="string">"red"</span><span class="delimiter">,</span> <span class="identifier">f</span><span class="string">"\n  Task #{pos[0]} not found.\n"</span><span class="delimiter">)</span><span class="delimiter">)</span>
+
+    <span class="comment"># ── delete ───────────────────────────────</span>
+    <span class="keyword">elif</span> <span class="identifier">cmd</span> <span class="operator">==</span> <span class="string">"delete"</span><span class="delimiter">:</span>
+        <span class="keyword">if</span> <span class="keyword">not</span> <span class="identifier">pos</span><span class="delimiter">:</span>
+            <span class="identifier">print</span><span class="delimiter">(</span><span class="identifier">c</span><span class="delimiter">(</span><span class="string">"red"</span><span class="delimiter">,</span> <span class="string">"  Error: provide the task ID."</span><span class="delimiter">)</span><span class="delimiter">)</span><span class="delimiter">;</span> <span class="keyword">return</span>
+        <span class="keyword">if</span> <span class="identifier">delete_task</span><span class="delimiter">(</span><span class="identifier">int</span><span class="delimiter">(</span><span class="identifier">pos</span><span class="delimiter">[</span><span class="integer">0</span><span class="delimiter">]</span><span class="delimiter">)</span><span class="delimiter">)</span><span class="delimiter">:</span>
+            <span class="identifier">print</span><span class="delimiter">(</span><span class="identifier">c</span><span class="delimiter">(</span><span class="string">"yellow"</span><span class="delimiter">,</span> <span class="identifier">f</span><span class="string">"\n  🗑  Task #{pos[0]} deleted.\n"</span><span class="delimiter">)</span><span class="delimiter">)</span>
+        <span class="keyword">else</span><span class="delimiter">:</span>
+            <span class="identifier">print</span><span class="delimiter">(</span><span class="identifier">c</span><span class="delimiter">(</span><span class="string">"red"</span><span class="delimiter">,</span> <span class="identifier">f</span><span class="string">"\n  Task #{pos[0]} not found.\n"</span><span class="delimiter">)</span><span class="delimiter">)</span>
+
+    <span class="comment"># ── search ───────────────────────────────</span>
+    <span class="keyword">elif</span> <span class="identifier">cmd</span> <span class="operator">==</span> <span class="string">"search"</span><span class="delimiter">:</span>
+        <span class="keyword">if</span> <span class="keyword">not</span> <span class="identifier">pos</span><span class="delimiter">:</span>
+            <span class="identifier">print</span><span class="delimiter">(</span><span class="identifier">c</span><span class="delimiter">(</span><span class="string">"red"</span><span class="delimiter">,</span> <span class="string">"  Error: provide a search query."</span><span class="delimiter">)</span><span class="delimiter">)</span><span class="delimiter">;</span> <span class="keyword">return</span>
+        <span class="identifier">results</span> <span class="operator">=</span> <span class="identifier">search_tasks</span><span class="delimiter">(</span><span class="string">" "</span><span class="delimiter">.</span><span class="identifier">join</span><span class="delimiter">(</span><span class="identifier">pos</span><span class="delimiter">)</span><span class="delimiter">)</span>
+        <span class="identifier">print_task_list</span><span class="delimiter">(</span><span class="identifier">results</span><span class="delimiter">,</span> <span class="identifier">title</span><span class="operator">=</span><span class="identifier">f</span><span class="string">'Results for "{" ".join(pos)}"'</span><span class="delimiter">)</span>
+
+    <span class="comment"># ── stats ────────────────────────────────</span>
+    <span class="keyword">elif</span> <span class="identifier">cmd</span> <span class="operator">==</span> <span class="string">"stats"</span><span class="delimiter">:</span>
+        <span class="identifier">print_stats</span><span class="delimiter">(</span><span class="identifier">load_tasks</span><span class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">)</span>
+
+    <span class="comment"># ── help ─────────────────────────────────</span>
+    <span class="keyword">elif</span> <span class="identifier">cmd</span> <span class="keyword">in</span> <span class="delimiter">(</span><span class="string">"help"</span><span class="delimiter">,</span> <span class="string">"--help"</span><span class="delimiter">,</span> <span class="string">"-h"</span><span class="delimiter">)</span><span class="delimiter">:</span>
+        <span class="identifier">print</span><span class="delimiter">(</span><span class="identifier">HELP_TEXT</span><span class="delimiter">)</span>
+
+    <span class="keyword">else</span><span class="delimiter">:</span>
+        <span class="identifier">print</span><span class="delimiter">(</span><span class="identifier">c</span><span class="delimiter">(</span><span class="string">"red"</span><span class="delimiter">,</span> <span class="identifier">f</span><span class="string">"\n  Unknown command: '{cmd}'. Use 'help' to see available commands.\n"</span><span class="delimiter">)</span><span class="delimiter">)</span>
+
+
+<span class="comment"># ─────────────────────────────────────────────</span>
+<span class="comment">#  Entry point</span>
+<span class="comment"># ─────────────────────────────────────────────</span>
+
+<span class="keyword">if</span> <span class="identifier">__name__</span> <span class="operator">==</span> <span class="string">"__main__"</span><span class="delimiter">:</span>
+    <span class="identifier">run</span><span class="delimiter">(</span><span class="identifier">sys</span><span class="delimiter">.</span><span class="identifier">argv</span><span class="delimiter">)</span></pre>
+  </body>
+</html>

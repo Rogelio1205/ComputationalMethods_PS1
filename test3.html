@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Highlighted Source</title>
+    <style>pre.code {background:#1e1b2b;color:#fff;padding:1rem;white-space:pre;overflow:auto;font-family:monospace;}
+.keyword {color:#c792ea;font-weight:bold}
+.identifier {color:#ffffff}
+.integer {color:#f78c6c}
+.float {color:#f78c6c}
+.string {color:#c3e88d}
+.comment {color:#7f848e;font-style:italic}
+.operator {color:#89ddff}
+.delimiter {color:#ff9d41}
+.whitespace {color:inherit}</style>
+  </head>
+  <body>
+    <pre class="code"><span class="comment"># ============================================================</span>
+<span class="comment"># Inventory Management System</span>
+<span class="comment"># Demonstrates: keywords, identifiers, integers, floats,</span>
+<span class="comment"># strings, comments, operators, delimiters, whitespace</span>
+<span class="comment"># ============================================================</span>
+
+<span class="keyword">import</span> <span class="identifier">json</span>
+<span class="keyword">import</span> <span class="identifier">os</span>
+<span class="keyword">from</span> <span class="identifier">datetime</span> <span class="keyword">import</span> <span class="identifier">datetime</span>
+
+
+<span class="comment"># --- Constants ---</span>
+
+<span class="identifier">MAX_STOCK</span>    <span class="operator">=</span> <span class="integer">1000</span>
+<span class="identifier">LOW_STOCK</span>    <span class="operator">=</span> <span class="integer">10</span>
+<span class="identifier">TAX_RATE</span>     <span class="operator">=</span> <span class="float">0.16</span>
+<span class="identifier">DISCOUNT_VIP</span> <span class="operator">=</span> <span class="float">0.20</span>
+<span class="identifier">STORE_NAME</span>   <span class="operator">=</span> <span class="string">"PyMart"</span>
+<span class="identifier">VERSION</span>      <span class="operator">=</span> <span class="string">"1.0.0"</span>
+
+
+<span class="comment"># --- Data model ---</span>
+
+<span class="keyword">class</span> <span class="identifier">Product</span><span class="delimiter">:</span>
+    <span class="string">"""Represents a product in the inventory."""</span>
+
+    <span class="keyword">def</span> <span class="identifier">__init__</span><span class="delimiter">(</span><span class="identifier">self</span><span class="delimiter">,</span> <span class="identifier">product_id</span><span class="delimiter">,</span> <span class="identifier">name</span><span class="delimiter">,</span> <span class="identifier">price</span><span class="delimiter">,</span> <span class="identifier">stock</span><span class="delimiter">,</span> <span class="identifier">category</span><span class="delimiter">)</span><span class="delimiter">:</span>
+        <span class="identifier">self</span><span class="delimiter">.</span><span class="identifier">product_id</span> <span class="operator">=</span> <span class="identifier">product_id</span>
+        <span class="identifier">self</span><span class="delimiter">.</span><span class="identifier">name</span>       <span class="operator">=</span> <span class="identifier">name</span>
+        <span class="identifier">self</span><span class="delimiter">.</span><span class="identifier">price</span>      <span class="operator">=</span> <span class="identifier">float</span><span class="delimiter">(</span><span class="identifier">price</span><span class="delimiter">)</span>
+        <span class="identifier">self</span><span class="delimiter">.</span><span class="identifier">stock</span>      <span class="operator">=</span> <span class="identifier">int</span><span class="delimiter">(</span><span class="identifier">stock</span><span class="delimiter">)</span>
+        <span class="identifier">self</span><span class="delimiter">.</span><span class="identifier">category</span>   <span class="operator">=</span> <span class="identifier">category</span>
+        <span class="identifier">self</span><span class="delimiter">.</span><span class="identifier">sold</span>       <span class="operator">=</span> <span class="integer">0</span>
+
+    <span class="keyword">def</span> <span class="identifier">is_available</span><span class="delimiter">(</span><span class="identifier">self</span><span class="delimiter">)</span><span class="delimiter">:</span>
+        <span class="keyword">return</span> <span class="identifier">self</span><span class="delimiter">.</span><span class="identifier">stock</span> <span class="operator">&gt;</span> <span class="integer">0</span>
+
+    <span class="keyword">def</span> <span class="identifier">is_low_stock</span><span class="delimiter">(</span><span class="identifier">self</span><span class="delimiter">)</span><span class="delimiter">:</span>
+        <span class="keyword">return</span> <span class="identifier">self</span><span class="delimiter">.</span><span class="identifier">stock</span> <span class="operator">&lt;=</span> <span class="identifier">LOW_STOCK</span>
+
+    <span class="keyword">def</span> <span class="identifier">apply_discount</span><span class="delimiter">(</span><span class="identifier">self</span><span class="delimiter">,</span> <span class="identifier">percent</span><span class="delimiter">)</span><span class="delimiter">:</span>
+        <span class="comment"># Reduce price by a given percentage</span>
+        <span class="keyword">if</span> <span class="identifier">percent</span> <span class="operator">&lt;</span> <span class="integer">0</span> <span class="keyword">or</span> <span class="identifier">percent</span> <span class="operator">&gt;</span> <span class="integer">1</span><span class="delimiter">:</span>
+            <span class="keyword">raise</span> <span class="identifier">ValueError</span><span class="delimiter">(</span><span class="string">"Discount must be between 0.0 and 1.0"</span><span class="delimiter">)</span>
+        <span class="identifier">self</span><span class="delimiter">.</span><span class="identifier">price</span> <span class="operator">=</span> <span class="identifier">round</span><span class="delimiter">(</span><span class="identifier">self</span><span class="delimiter">.</span><span class="identifier">price</span> <span class="operator">*</span> <span class="delimiter">(</span><span class="integer">1</span> <span class="operator">-</span> <span class="identifier">percent</span><span class="delimiter">)</span><span class="delimiter">,</span> <span class="integer">2</span><span class="delimiter">)</span>
+
+    <span class="keyword">def</span> <span class="identifier">restock</span><span class="delimiter">(</span><span class="identifier">self</span><span class="delimiter">,</span> <span class="identifier">amount</span><span class="delimiter">)</span><span class="delimiter">:</span>
+        <span class="keyword">if</span> <span class="identifier">amount</span> <span class="operator">&lt;=</span> <span class="integer">0</span><span class="delimiter">:</span>
+            <span class="keyword">raise</span> <span class="identifier">ValueError</span><span class="delimiter">(</span><span class="string">"Restock amount must be positive"</span><span class="delimiter">)</span>
+        <span class="keyword">if</span> <span class="identifier">self</span><span class="delimiter">.</span><span class="identifier">stock</span> <span class="operator">+</span> <span class="identifier">amount</span> <span class="operator">&gt;</span> <span class="identifier">MAX_STOCK</span><span class="delimiter">:</span>
+            <span class="keyword">raise</span> <span class="identifier">OverflowError</span><span class="delimiter">(</span><span class="identifier">f</span><span class="string">"Cannot exceed max stock of {MAX_STOCK}"</span><span class="delimiter">)</span>
+        <span class="identifier">self</span><span class="delimiter">.</span><span class="identifier">stock</span> <span class="operator">+=</span> <span class="identifier">amount</span>
+
+    <span class="keyword">def</span> <span class="identifier">sell</span><span class="delimiter">(</span><span class="identifier">self</span><span class="delimiter">,</span> <span class="identifier">quantity</span><span class="delimiter">)</span><span class="delimiter">:</span>
+        <span class="keyword">if</span> <span class="identifier">quantity</span> <span class="operator">&lt;=</span> <span class="integer">0</span><span class="delimiter">:</span>
+            <span class="keyword">raise</span> <span class="identifier">ValueError</span><span class="delimiter">(</span><span class="string">"Quantity must be positive"</span><span class="delimiter">)</span>
+        <span class="keyword">if</span> <span class="identifier">quantity</span> <span class="operator">&gt;</span> <span class="identifier">self</span><span class="delimiter">.</span><span class="identifier">stock</span><span class="delimiter">:</span>
+            <span class="keyword">raise</span> <span class="identifier">ValueError</span><span class="delimiter">(</span><span class="identifier">f</span><span class="string">"Only {self.stock} units available"</span><span class="delimiter">)</span>
+        <span class="identifier">self</span><span class="delimiter">.</span><span class="identifier">stock</span> <span class="operator">-=</span> <span class="identifier">quantity</span>
+        <span class="identifier">self</span><span class="delimiter">.</span><span class="identifier">sold</span>  <span class="operator">+=</span> <span class="identifier">quantity</span>
+        <span class="keyword">return</span> <span class="identifier">self</span><span class="delimiter">.</span><span class="identifier">price</span> <span class="operator">*</span> <span class="identifier">quantity</span>
+
+    <span class="keyword">def</span> <span class="identifier">total_value</span><span class="delimiter">(</span><span class="identifier">self</span><span class="delimiter">)</span><span class="delimiter">:</span>
+        <span class="keyword">return</span> <span class="identifier">round</span><span class="delimiter">(</span><span class="identifier">self</span><span class="delimiter">.</span><span class="identifier">price</span> <span class="operator">*</span> <span class="identifier">self</span><span class="delimiter">.</span><span class="identifier">stock</span><span class="delimiter">,</span> <span class="integer">2</span><span class="delimiter">)</span>
+
+    <span class="keyword">def</span> <span class="identifier">__repr__</span><span class="delimiter">(</span><span class="identifier">self</span><span class="delimiter">)</span><span class="delimiter">:</span>
+        <span class="keyword">return</span> <span class="delimiter">(</span>
+            <span class="identifier">f</span><span class="string">"Product(id={self.product_id!r}, name={self.name!r}, "</span>
+            <span class="identifier">f</span><span class="string">"price={self.price}, stock={self.stock})"</span>
+        <span class="delimiter">)</span>
+
+
+<span class="keyword">class</span> <span class="identifier">Inventory</span><span class="delimiter">:</span>
+    <span class="string">"""Manages a collection of products."""</span>
+
+    <span class="keyword">def</span> <span class="identifier">__init__</span><span class="delimiter">(</span><span class="identifier">self</span><span class="delimiter">,</span> <span class="identifier">store_name</span><span class="delimiter">)</span><span class="delimiter">:</span>
+        <span class="identifier">self</span><span class="delimiter">.</span><span class="identifier">store_name</span> <span class="operator">=</span> <span class="identifier">store_name</span>
+        <span class="identifier">self</span><span class="delimiter">.</span><span class="identifier">products</span>   <span class="operator">=</span> <span class="delimiter">{</span><span class="delimiter">}</span>
+        <span class="identifier">self</span><span class="delimiter">.</span><span class="identifier">log</span>        <span class="operator">=</span> <span class="delimiter">[</span><span class="delimiter">]</span>
+
+    <span class="keyword">def</span> <span class="identifier">add_product</span><span class="delimiter">(</span><span class="identifier">self</span><span class="delimiter">,</span> <span class="identifier">product</span><span class="delimiter">)</span><span class="delimiter">:</span>
+        <span class="keyword">if</span> <span class="identifier">product</span><span class="delimiter">.</span><span class="identifier">product_id</span> <span class="keyword">in</span> <span class="identifier">self</span><span class="delimiter">.</span><span class="identifier">products</span><span class="delimiter">:</span>
+            <span class="keyword">raise</span> <span class="identifier">KeyError</span><span class="delimiter">(</span><span class="identifier">f</span><span class="string">"Product '{product.product_id}' already exists"</span><span class="delimiter">)</span>
+        <span class="identifier">self</span><span class="delimiter">.</span><span class="identifier">products</span><span class="delimiter">[</span><span class="identifier">product</span><span class="delimiter">.</span><span class="identifier">product_id</span><span class="delimiter">]</span> <span class="operator">=</span> <span class="identifier">product</span>
+        <span class="identifier">self</span><span class="delimiter">.</span><span class="identifier">_record</span><span class="delimiter">(</span><span class="identifier">f</span><span class="string">"Added product: {product.name}"</span><span class="delimiter">)</span>
+
+    <span class="keyword">def</span> <span class="identifier">remove_product</span><span class="delimiter">(</span><span class="identifier">self</span><span class="delimiter">,</span> <span class="identifier">product_id</span><span class="delimiter">)</span><span class="delimiter">:</span>
+        <span class="keyword">if</span> <span class="identifier">product_id</span> <span class="keyword">not</span> <span class="keyword">in</span> <span class="identifier">self</span><span class="delimiter">.</span><span class="identifier">products</span><span class="delimiter">:</span>
+            <span class="keyword">raise</span> <span class="identifier">KeyError</span><span class="delimiter">(</span><span class="identifier">f</span><span class="string">"Product '{product_id}' not found"</span><span class="delimiter">)</span>
+        <span class="identifier">removed</span> <span class="operator">=</span> <span class="identifier">self</span><span class="delimiter">.</span><span class="identifier">products</span><span class="delimiter">.</span><span class="identifier">pop</span><span class="delimiter">(</span><span class="identifier">product_id</span><span class="delimiter">)</span>
+        <span class="identifier">self</span><span class="delimiter">.</span><span class="identifier">_record</span><span class="delimiter">(</span><span class="identifier">f</span><span class="string">"Removed product: {removed.name}"</span><span class="delimiter">)</span>
+        <span class="keyword">return</span> <span class="identifier">removed</span>
+
+    <span class="keyword">def</span> <span class="identifier">get</span><span class="delimiter">(</span><span class="identifier">self</span><span class="delimiter">,</span> <span class="identifier">product_id</span><span class="delimiter">)</span><span class="delimiter">:</span>
+        <span class="keyword">return</span> <span class="identifier">self</span><span class="delimiter">.</span><span class="identifier">products</span><span class="delimiter">.</span><span class="identifier">get</span><span class="delimiter">(</span><span class="identifier">product_id</span><span class="delimiter">)</span>
+
+    <span class="keyword">def</span> <span class="identifier">search</span><span class="delimiter">(</span><span class="identifier">self</span><span class="delimiter">,</span> <span class="identifier">keyword</span><span class="delimiter">)</span><span class="delimiter">:</span>
+        <span class="comment"># Case-insensitive search by name or category</span>
+        <span class="identifier">kw</span> <span class="operator">=</span> <span class="identifier">keyword</span><span class="delimiter">.</span><span class="identifier">lower</span><span class="delimiter">(</span><span class="delimiter">)</span>
+        <span class="keyword">return</span> <span class="delimiter">[</span>
+            <span class="identifier">p</span> <span class="keyword">for</span> <span class="identifier">p</span> <span class="keyword">in</span> <span class="identifier">self</span><span class="delimiter">.</span><span class="identifier">products</span><span class="delimiter">.</span><span class="identifier">values</span><span class="delimiter">(</span><span class="delimiter">)</span>
+            <span class="keyword">if</span> <span class="identifier">kw</span> <span class="keyword">in</span> <span class="identifier">p</span><span class="delimiter">.</span><span class="identifier">name</span><span class="delimiter">.</span><span class="identifier">lower</span><span class="delimiter">(</span><span class="delimiter">)</span> <span class="keyword">or</span> <span class="identifier">kw</span> <span class="keyword">in</span> <span class="identifier">p</span><span class="delimiter">.</span><span class="identifier">category</span><span class="delimiter">.</span><span class="identifier">lower</span><span class="delimiter">(</span><span class="delimiter">)</span>
+        <span class="delimiter">]</span>
+
+    <span class="keyword">def</span> <span class="identifier">low_stock_alerts</span><span class="delimiter">(</span><span class="identifier">self</span><span class="delimiter">)</span><span class="delimiter">:</span>
+        <span class="keyword">return</span> <span class="delimiter">[</span><span class="identifier">p</span> <span class="keyword">for</span> <span class="identifier">p</span> <span class="keyword">in</span> <span class="identifier">self</span><span class="delimiter">.</span><span class="identifier">products</span><span class="delimiter">.</span><span class="identifier">values</span><span class="delimiter">(</span><span class="delimiter">)</span> <span class="keyword">if</span> <span class="identifier">p</span><span class="delimiter">.</span><span class="identifier">is_low_stock</span><span class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">]</span>
+
+    <span class="keyword">def</span> <span class="identifier">total_inventory_value</span><span class="delimiter">(</span><span class="identifier">self</span><span class="delimiter">)</span><span class="delimiter">:</span>
+        <span class="keyword">return</span> <span class="identifier">round</span><span class="delimiter">(</span><span class="identifier">sum</span><span class="delimiter">(</span><span class="identifier">p</span><span class="delimiter">.</span><span class="identifier">total_value</span><span class="delimiter">(</span><span class="delimiter">)</span> <span class="keyword">for</span> <span class="identifier">p</span> <span class="keyword">in</span> <span class="identifier">self</span><span class="delimiter">.</span><span class="identifier">products</span><span class="delimiter">.</span><span class="identifier">values</span><span class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">)</span><span class="delimiter">,</span> <span class="integer">2</span><span class="delimiter">)</span>
+
+    <span class="keyword">def</span> <span class="identifier">category_summary</span><span class="delimiter">(</span><span class="identifier">self</span><span class="delimiter">)</span><span class="delimiter">:</span>
+        <span class="identifier">summary</span> <span class="operator">=</span> <span class="delimiter">{</span><span class="delimiter">}</span>
+        <span class="keyword">for</span> <span class="identifier">p</span> <span class="keyword">in</span> <span class="identifier">self</span><span class="delimiter">.</span><span class="identifier">products</span><span class="delimiter">.</span><span class="identifier">values</span><span class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">:</span>
+            <span class="keyword">if</span> <span class="identifier">p</span><span class="delimiter">.</span><span class="identifier">category</span> <span class="keyword">not</span> <span class="keyword">in</span> <span class="identifier">summary</span><span class="delimiter">:</span>
+                <span class="identifier">summary</span><span class="delimiter">[</span><span class="identifier">p</span><span class="delimiter">.</span><span class="identifier">category</span><span class="delimiter">]</span> <span class="operator">=</span> <span class="delimiter">{</span><span class="string">"count"</span><span class="delimiter">:</span> <span class="integer">0</span><span class="delimiter">,</span> <span class="string">"value"</span><span class="delimiter">:</span> <span class="float">0.0</span><span class="delimiter">}</span>
+            <span class="identifier">summary</span><span class="delimiter">[</span><span class="identifier">p</span><span class="delimiter">.</span><span class="identifier">category</span><span class="delimiter">]</span><span class="delimiter">[</span><span class="string">"count"</span><span class="delimiter">]</span> <span class="operator">+=</span> <span class="integer">1</span>
+            <span class="identifier">summary</span><span class="delimiter">[</span><span class="identifier">p</span><span class="delimiter">.</span><span class="identifier">category</span><span class="delimiter">]</span><span class="delimiter">[</span><span class="string">"value"</span><span class="delimiter">]</span> <span class="operator">+=</span> <span class="identifier">p</span><span class="delimiter">.</span><span class="identifier">total_value</span><span class="delimiter">(</span><span class="delimiter">)</span>
+        <span class="keyword">return</span> <span class="identifier">summary</span>
+
+    <span class="keyword">def</span> <span class="identifier">_record</span><span class="delimiter">(</span><span class="identifier">self</span><span class="delimiter">,</span> <span class="identifier">message</span><span class="delimiter">)</span><span class="delimiter">:</span>
+        <span class="identifier">timestamp</span> <span class="operator">=</span> <span class="identifier">datetime</span><span class="delimiter">.</span><span class="identifier">now</span><span class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">.</span><span class="identifier">strftime</span><span class="delimiter">(</span><span class="string">"%Y-%m-%d %H:%M:%S"</span><span class="delimiter">)</span>
+        <span class="identifier">entry</span>     <span class="operator">=</span> <span class="identifier">f</span><span class="string">"[{timestamp}] {message}"</span>
+        <span class="identifier">self</span><span class="delimiter">.</span><span class="identifier">log</span><span class="delimiter">.</span><span class="identifier">append</span><span class="delimiter">(</span><span class="identifier">entry</span><span class="delimiter">)</span>
+
+    <span class="keyword">def</span> <span class="identifier">export_json</span><span class="delimiter">(</span><span class="identifier">self</span><span class="delimiter">,</span> <span class="identifier">path</span><span class="delimiter">)</span><span class="delimiter">:</span>
+        <span class="identifier">data</span> <span class="operator">=</span> <span class="delimiter">{</span>
+            <span class="string">"store"</span><span class="delimiter">:</span>    <span class="identifier">self</span><span class="delimiter">.</span><span class="identifier">store_name</span><span class="delimiter">,</span>
+            <span class="string">"exported"</span><span class="delimiter">:</span> <span class="identifier">datetime</span><span class="delimiter">.</span><span class="identifier">now</span><span class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">.</span><span class="identifier">isoformat</span><span class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">,</span>
+            <span class="string">"products"</span><span class="delimiter">:</span> <span class="delimiter">[</span>
+                <span class="delimiter">{</span>
+                    <span class="string">"id"</span><span class="delimiter">:</span>       <span class="identifier">p</span><span class="delimiter">.</span><span class="identifier">product_id</span><span class="delimiter">,</span>
+                    <span class="string">"name"</span><span class="delimiter">:</span>     <span class="identifier">p</span><span class="delimiter">.</span><span class="identifier">name</span><span class="delimiter">,</span>
+                    <span class="string">"price"</span><span class="delimiter">:</span>    <span class="identifier">p</span><span class="delimiter">.</span><span class="identifier">price</span><span class="delimiter">,</span>
+                    <span class="string">"stock"</span><span class="delimiter">:</span>    <span class="identifier">p</span><span class="delimiter">.</span><span class="identifier">stock</span><span class="delimiter">,</span>
+                    <span class="string">"category"</span><span class="delimiter">:</span> <span class="identifier">p</span><span class="delimiter">.</span><span class="identifier">category</span><span class="delimiter">,</span>
+                    <span class="string">"sold"</span><span class="delimiter">:</span>     <span class="identifier">p</span><span class="delimiter">.</span><span class="identifier">sold</span><span class="delimiter">,</span>
+                <span class="delimiter">}</span>
+                <span class="keyword">for</span> <span class="identifier">p</span> <span class="keyword">in</span> <span class="identifier">self</span><span class="delimiter">.</span><span class="identifier">products</span><span class="delimiter">.</span><span class="identifier">values</span><span class="delimiter">(</span><span class="delimiter">)</span>
+            <span class="delimiter">]</span>
+        <span class="delimiter">}</span>
+        <span class="keyword">with</span> <span class="identifier">open</span><span class="delimiter">(</span><span class="identifier">path</span><span class="delimiter">,</span> <span class="string">"w"</span><span class="delimiter">,</span> <span class="identifier">encoding</span><span class="operator">=</span><span class="string">"utf-8"</span><span class="delimiter">)</span> <span class="keyword">as</span> <span class="identifier">f</span><span class="delimiter">:</span>
+            <span class="identifier">json</span><span class="delimiter">.</span><span class="identifier">dump</span><span class="delimiter">(</span><span class="identifier">data</span><span class="delimiter">,</span> <span class="identifier">f</span><span class="delimiter">,</span> <span class="identifier">indent</span><span class="operator">=</span><span class="integer">2</span><span class="delimiter">)</span>
+        <span class="identifier">self</span><span class="delimiter">.</span><span class="identifier">_record</span><span class="delimiter">(</span><span class="identifier">f</span><span class="string">"Exported inventory to {path}"</span><span class="delimiter">)</span>
+
+
+<span class="comment"># --- Checkout ---</span>
+
+<span class="keyword">def</span> <span class="identifier">calculate_total</span><span class="delimiter">(</span><span class="identifier">cart</span><span class="delimiter">,</span> <span class="identifier">is_vip</span><span class="operator">=</span><span class="keyword">False</span><span class="delimiter">)</span><span class="delimiter">:</span>
+    <span class="string">"""
+    Given a list of (product, quantity) tuples,
+    returns subtotal, tax, discount, and grand total.
+    """</span>
+    <span class="identifier">subtotal</span> <span class="operator">=</span> <span class="float">0.0</span>
+    <span class="keyword">for</span> <span class="identifier">product</span><span class="delimiter">,</span> <span class="identifier">qty</span> <span class="keyword">in</span> <span class="identifier">cart</span><span class="delimiter">:</span>
+        <span class="identifier">subtotal</span> <span class="operator">+=</span> <span class="identifier">product</span><span class="delimiter">.</span><span class="identifier">price</span> <span class="operator">*</span> <span class="identifier">qty</span>
+
+    <span class="identifier">discount</span> <span class="operator">=</span> <span class="identifier">subtotal</span> <span class="operator">*</span> <span class="identifier">DISCOUNT_VIP</span> <span class="keyword">if</span> <span class="identifier">is_vip</span> <span class="keyword">else</span> <span class="float">0.0</span>
+    <span class="identifier">taxable</span>  <span class="operator">=</span> <span class="identifier">subtotal</span> <span class="operator">-</span> <span class="identifier">discount</span>
+    <span class="identifier">tax</span>      <span class="operator">=</span> <span class="identifier">round</span><span class="delimiter">(</span><span class="identifier">taxable</span> <span class="operator">*</span> <span class="identifier">TAX_RATE</span><span class="delimiter">,</span> <span class="integer">2</span><span class="delimiter">)</span>
+    <span class="identifier">total</span>    <span class="operator">=</span> <span class="identifier">round</span><span class="delimiter">(</span><span class="identifier">taxable</span> <span class="operator">+</span> <span class="identifier">tax</span><span class="delimiter">,</span> <span class="integer">2</span><span class="delimiter">)</span>
+
+    <span class="keyword">return</span> <span class="delimiter">{</span>
+        <span class="string">"subtotal"</span><span class="delimiter">:</span> <span class="identifier">round</span><span class="delimiter">(</span><span class="identifier">subtotal</span><span class="delimiter">,</span> <span class="integer">2</span><span class="delimiter">)</span><span class="delimiter">,</span>
+        <span class="string">"discount"</span><span class="delimiter">:</span> <span class="identifier">round</span><span class="delimiter">(</span><span class="identifier">discount</span><span class="delimiter">,</span> <span class="integer">2</span><span class="delimiter">)</span><span class="delimiter">,</span>
+        <span class="string">"tax"</span><span class="delimiter">:</span>      <span class="identifier">tax</span><span class="delimiter">,</span>
+        <span class="string">"total"</span><span class="delimiter">:</span>    <span class="identifier">total</span><span class="delimiter">,</span>
+    <span class="delimiter">}</span>
+
+
+<span class="keyword">def</span> <span class="identifier">process_sale</span><span class="delimiter">(</span><span class="identifier">inventory</span><span class="delimiter">,</span> <span class="identifier">cart</span><span class="delimiter">,</span> <span class="identifier">is_vip</span><span class="operator">=</span><span class="keyword">False</span><span class="delimiter">)</span><span class="delimiter">:</span>
+    <span class="string">"""Process a sale: deduct stock and return receipt."""</span>
+    <span class="identifier">receipt_lines</span> <span class="operator">=</span> <span class="delimiter">[</span><span class="delimiter">]</span>
+    <span class="identifier">actual_cart</span>   <span class="operator">=</span> <span class="delimiter">[</span><span class="delimiter">]</span>
+
+    <span class="keyword">for</span> <span class="identifier">product_id</span><span class="delimiter">,</span> <span class="identifier">qty</span> <span class="keyword">in</span> <span class="identifier">cart</span><span class="delimiter">:</span>
+        <span class="identifier">product</span> <span class="operator">=</span> <span class="identifier">inventory</span><span class="delimiter">.</span><span class="identifier">get</span><span class="delimiter">(</span><span class="identifier">product_id</span><span class="delimiter">)</span>
+        <span class="keyword">if</span> <span class="identifier">product</span> <span class="keyword">is</span> <span class="keyword">None</span><span class="delimiter">:</span>
+            <span class="identifier">print</span><span class="delimiter">(</span><span class="identifier">f</span><span class="string">"  Warning: product '{product_id}' not found, skipping"</span><span class="delimiter">)</span>
+            <span class="keyword">continue</span>
+        <span class="keyword">if</span> <span class="keyword">not</span> <span class="identifier">product</span><span class="delimiter">.</span><span class="identifier">is_available</span><span class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">:</span>
+            <span class="identifier">print</span><span class="delimiter">(</span><span class="identifier">f</span><span class="string">"  Warning: '{product.name}' is out of stock, skipping"</span><span class="delimiter">)</span>
+            <span class="keyword">continue</span>
+        <span class="identifier">amount</span> <span class="operator">=</span> <span class="identifier">product</span><span class="delimiter">.</span><span class="identifier">sell</span><span class="delimiter">(</span><span class="identifier">qty</span><span class="delimiter">)</span>
+        <span class="identifier">actual_cart</span><span class="delimiter">.</span><span class="identifier">append</span><span class="delimiter">(</span><span class="delimiter">(</span><span class="identifier">product</span><span class="delimiter">,</span> <span class="identifier">qty</span><span class="delimiter">)</span><span class="delimiter">)</span>
+        <span class="identifier">receipt_lines</span><span class="delimiter">.</span><span class="identifier">append</span><span class="delimiter">(</span>
+            <span class="identifier">f</span><span class="string">"  {product.name:&lt;25} x{qty:&gt;3}  ${amount:&gt;8.2f}"</span>
+        <span class="delimiter">)</span>
+        <span class="identifier">inventory</span><span class="delimiter">.</span><span class="identifier">_record</span><span class="delimiter">(</span><span class="identifier">f</span><span class="string">"Sold {qty}x {product.name}"</span><span class="delimiter">)</span>
+
+    <span class="identifier">totals</span> <span class="operator">=</span> <span class="identifier">calculate_total</span><span class="delimiter">(</span><span class="identifier">actual_cart</span><span class="delimiter">,</span> <span class="identifier">is_vip</span><span class="operator">=</span><span class="identifier">is_vip</span><span class="delimiter">)</span>
+
+    <span class="identifier">receipt</span> <span class="operator">=</span> <span class="delimiter">[</span>
+        <span class="string">"="</span> <span class="operator">*</span> <span class="integer">45</span><span class="delimiter">,</span>
+        <span class="identifier">f</span><span class="string">"  {STORE_NAME} — Receipt"</span><span class="delimiter">.</span><span class="identifier">center</span><span class="delimiter">(</span><span class="integer">45</span><span class="delimiter">)</span><span class="delimiter">,</span>
+        <span class="string">"="</span> <span class="operator">*</span> <span class="integer">45</span><span class="delimiter">,</span>
+    <span class="delimiter">]</span> <span class="operator">+</span> <span class="identifier">receipt_lines</span> <span class="operator">+</span> <span class="delimiter">[</span>
+        <span class="string">"-"</span> <span class="operator">*</span> <span class="integer">45</span><span class="delimiter">,</span>
+        <span class="identifier">f</span><span class="string">"  {'Subtotal':&lt;30} ${totals['subtotal']:&gt;8.2f}"</span><span class="delimiter">,</span>
+        <span class="identifier">f</span><span class="string">"  {'VIP Discount':&lt;30} -${totals['discount']:&gt;7.2f}"</span><span class="delimiter">,</span>
+        <span class="identifier">f</span><span class="string">"  {'Tax (16%)':&lt;30} ${totals['tax']:&gt;8.2f}"</span><span class="delimiter">,</span>
+        <span class="identifier">f</span><span class="string">"  {'TOTAL':&lt;30} ${totals['total']:&gt;8.2f}"</span><span class="delimiter">,</span>
+        <span class="string">"="</span> <span class="operator">*</span> <span class="integer">45</span><span class="delimiter">,</span>
+    <span class="delimiter">]</span>
+    <span class="keyword">return</span> <span class="string">"\n"</span><span class="delimiter">.</span><span class="identifier">join</span><span class="delimiter">(</span><span class="identifier">receipt</span><span class="delimiter">)</span>
+
+
+<span class="comment"># --- Reports ---</span>
+
+<span class="keyword">def</span> <span class="identifier">print_inventory_report</span><span class="delimiter">(</span><span class="identifier">inventory</span><span class="delimiter">)</span><span class="delimiter">:</span>
+    <span class="identifier">print</span><span class="delimiter">(</span><span class="identifier">f</span><span class="string">"\n{'=' * 50}"</span><span class="delimiter">)</span>
+    <span class="identifier">print</span><span class="delimiter">(</span><span class="identifier">f</span><span class="string">"  {inventory.store_name} — Inventory Report"</span><span class="delimiter">)</span>
+    <span class="identifier">print</span><span class="delimiter">(</span><span class="identifier">f</span><span class="string">"{'=' * 50}"</span><span class="delimiter">)</span>
+
+    <span class="keyword">for</span> <span class="identifier">p</span> <span class="keyword">in</span> <span class="identifier">sorted</span><span class="delimiter">(</span><span class="identifier">inventory</span><span class="delimiter">.</span><span class="identifier">products</span><span class="delimiter">.</span><span class="identifier">values</span><span class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">,</span> <span class="identifier">key</span><span class="operator">=</span><span class="keyword">lambda</span> <span class="identifier">x</span><span class="delimiter">:</span> <span class="identifier">x</span><span class="delimiter">.</span><span class="identifier">category</span><span class="delimiter">)</span><span class="delimiter">:</span>
+        <span class="identifier">flag</span> <span class="operator">=</span> <span class="string">" ⚠ LOW"</span> <span class="keyword">if</span> <span class="identifier">p</span><span class="delimiter">.</span><span class="identifier">is_low_stock</span><span class="delimiter">(</span><span class="delimiter">)</span> <span class="keyword">else</span> <span class="string">""</span>
+        <span class="identifier">print</span><span class="delimiter">(</span>
+            <span class="identifier">f</span><span class="string">"  [{p.product_id}] {p.name:&lt;22} "</span>
+            <span class="identifier">f</span><span class="string">"${p.price:&gt;7.2f}  stock: {p.stock:&gt;4}{flag}"</span>
+        <span class="delimiter">)</span>
+
+    <span class="identifier">alerts</span> <span class="operator">=</span> <span class="identifier">inventory</span><span class="delimiter">.</span><span class="identifier">low_stock_alerts</span><span class="delimiter">(</span><span class="delimiter">)</span>
+    <span class="keyword">if</span> <span class="identifier">alerts</span><span class="delimiter">:</span>
+        <span class="identifier">print</span><span class="delimiter">(</span><span class="identifier">f</span><span class="string">"\n  Low stock alerts ({len(alerts)} items):"</span><span class="delimiter">)</span>
+        <span class="keyword">for</span> <span class="identifier">p</span> <span class="keyword">in</span> <span class="identifier">alerts</span><span class="delimiter">:</span>
+            <span class="identifier">print</span><span class="delimiter">(</span><span class="identifier">f</span><span class="string">"    - {p.name} ({p.stock} left)"</span><span class="delimiter">)</span>
+
+    <span class="identifier">print</span><span class="delimiter">(</span><span class="identifier">f</span><span class="string">"\n  Total inventory value: ${inventory.total_inventory_value():,.2f}"</span><span class="delimiter">)</span>
+
+    <span class="identifier">print</span><span class="delimiter">(</span><span class="string">"\n  Category breakdown:"</span><span class="delimiter">)</span>
+    <span class="keyword">for</span> <span class="identifier">cat</span><span class="delimiter">,</span> <span class="identifier">data</span> <span class="keyword">in</span> <span class="identifier">inventory</span><span class="delimiter">.</span><span class="identifier">category_summary</span><span class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">.</span><span class="identifier">items</span><span class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">:</span>
+        <span class="identifier">print</span><span class="delimiter">(</span><span class="identifier">f</span><span class="string">"    {cat:&lt;15} {data['count']} products  ${data['value']:,.2f}"</span><span class="delimiter">)</span>
+
+    <span class="identifier">print</span><span class="delimiter">(</span><span class="identifier">f</span><span class="string">"{'=' * 50}\n"</span><span class="delimiter">)</span>
+
+
+<span class="comment"># --- Main ---</span>
+
+<span class="keyword">def</span> <span class="identifier">main</span><span class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">:</span>
+    <span class="identifier">inv</span> <span class="operator">=</span> <span class="identifier">Inventory</span><span class="delimiter">(</span><span class="identifier">STORE_NAME</span><span class="delimiter">)</span>
+
+    <span class="comment"># Add products: (id, name, price, stock, category)</span>
+    <span class="identifier">products</span> <span class="operator">=</span> <span class="delimiter">[</span>
+        <span class="identifier">Product</span><span class="delimiter">(</span><span class="string">"A001"</span><span class="delimiter">,</span> <span class="string">"Wireless Mouse"</span><span class="delimiter">,</span>      <span class="float">29.99</span><span class="delimiter">,</span>  <span class="integer">45</span><span class="delimiter">,</span> <span class="string">"Electronics"</span><span class="delimiter">)</span><span class="delimiter">,</span>
+        <span class="identifier">Product</span><span class="delimiter">(</span><span class="string">"A002"</span><span class="delimiter">,</span> <span class="string">"USB-C Hub"</span><span class="delimiter">,</span>            <span class="float">49.95</span><span class="delimiter">,</span>   <span class="integer">8</span><span class="delimiter">,</span> <span class="string">"Electronics"</span><span class="delimiter">)</span><span class="delimiter">,</span>
+        <span class="identifier">Product</span><span class="delimiter">(</span><span class="string">"A003"</span><span class="delimiter">,</span> <span class="string">"Mechanical Keyboard"</span><span class="delimiter">,</span> <span class="float">119.00</span><span class="delimiter">,</span>  <span class="integer">22</span><span class="delimiter">,</span> <span class="string">"Electronics"</span><span class="delimiter">)</span><span class="delimiter">,</span>
+        <span class="identifier">Product</span><span class="delimiter">(</span><span class="string">"B001"</span><span class="delimiter">,</span> <span class="string">"Desk Lamp"</span><span class="delimiter">,</span>            <span class="float">24.50</span><span class="delimiter">,</span>  <span class="integer">60</span><span class="delimiter">,</span> <span class="string">"Office"</span><span class="delimiter">)</span><span class="delimiter">,</span>
+        <span class="identifier">Product</span><span class="delimiter">(</span><span class="string">"B002"</span><span class="delimiter">,</span> <span class="string">"Notebook (A4)"</span><span class="delimiter">,</span>         <span class="float">4.75</span><span class="delimiter">,</span> <span class="integer">200</span><span class="delimiter">,</span> <span class="string">"Office"</span><span class="delimiter">)</span><span class="delimiter">,</span>
+        <span class="identifier">Product</span><span class="delimiter">(</span><span class="string">"B003"</span><span class="delimiter">,</span> <span class="string">"Ballpoint Pens x10"</span><span class="delimiter">,</span>    <span class="float">3.99</span><span class="delimiter">,</span>   <span class="integer">7</span><span class="delimiter">,</span> <span class="string">"Office"</span><span class="delimiter">)</span><span class="delimiter">,</span>
+        <span class="identifier">Product</span><span class="delimiter">(</span><span class="string">"C001"</span><span class="delimiter">,</span> <span class="string">"Coffee Mug"</span><span class="delimiter">,</span>            <span class="float">9.99</span><span class="delimiter">,</span>  <span class="integer">35</span><span class="delimiter">,</span> <span class="string">"Kitchen"</span><span class="delimiter">)</span><span class="delimiter">,</span>
+        <span class="identifier">Product</span><span class="delimiter">(</span><span class="string">"C002"</span><span class="delimiter">,</span> <span class="string">"Stainless Bottle"</span><span class="delimiter">,</span>     <span class="float">18.50</span><span class="delimiter">,</span>  <span class="integer">12</span><span class="delimiter">,</span> <span class="string">"Kitchen"</span><span class="delimiter">)</span><span class="delimiter">,</span>
+    <span class="delimiter">]</span>
+
+    <span class="keyword">for</span> <span class="identifier">p</span> <span class="keyword">in</span> <span class="identifier">products</span><span class="delimiter">:</span>
+        <span class="identifier">inv</span><span class="delimiter">.</span><span class="identifier">add_product</span><span class="delimiter">(</span><span class="identifier">p</span><span class="delimiter">)</span>
+
+    <span class="comment"># Apply a discount to electronics</span>
+    <span class="keyword">for</span> <span class="identifier">p</span> <span class="keyword">in</span> <span class="identifier">inv</span><span class="delimiter">.</span><span class="identifier">search</span><span class="delimiter">(</span><span class="string">"electronics"</span><span class="delimiter">)</span><span class="delimiter">:</span>
+        <span class="identifier">p</span><span class="delimiter">.</span><span class="identifier">apply_discount</span><span class="delimiter">(</span><span class="float">0.10</span><span class="delimiter">)</span>
+
+    <span class="identifier">print_inventory_report</span><span class="delimiter">(</span><span class="identifier">inv</span><span class="delimiter">)</span>
+
+    <span class="comment"># Simulate a VIP sale</span>
+    <span class="identifier">cart</span> <span class="operator">=</span> <span class="delimiter">[</span>
+        <span class="delimiter">(</span><span class="string">"A001"</span><span class="delimiter">,</span> <span class="integer">2</span><span class="delimiter">)</span><span class="delimiter">,</span>
+        <span class="delimiter">(</span><span class="string">"B002"</span><span class="delimiter">,</span> <span class="integer">5</span><span class="delimiter">)</span><span class="delimiter">,</span>
+        <span class="delimiter">(</span><span class="string">"C001"</span><span class="delimiter">,</span> <span class="integer">1</span><span class="delimiter">)</span><span class="delimiter">,</span>
+        <span class="delimiter">(</span><span class="string">"A002"</span><span class="delimiter">,</span> <span class="integer">3</span><span class="delimiter">)</span><span class="delimiter">,</span>
+    <span class="delimiter">]</span>
+    <span class="identifier">print</span><span class="delimiter">(</span><span class="identifier">process_sale</span><span class="delimiter">(</span><span class="identifier">inv</span><span class="delimiter">,</span> <span class="identifier">cart</span><span class="delimiter">,</span> <span class="identifier">is_vip</span><span class="operator">=</span><span class="keyword">True</span><span class="delimiter">)</span><span class="delimiter">)</span>
+
+    <span class="comment"># Restock a low-stock item</span>
+    <span class="identifier">pen_pack</span> <span class="operator">=</span> <span class="identifier">inv</span><span class="delimiter">.</span><span class="identifier">get</span><span class="delimiter">(</span><span class="string">"B003"</span><span class="delimiter">)</span>
+    <span class="keyword">if</span> <span class="identifier">pen_pack</span> <span class="keyword">and</span> <span class="identifier">pen_pack</span><span class="delimiter">.</span><span class="identifier">is_low_stock</span><span class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">:</span>
+        <span class="identifier">pen_pack</span><span class="delimiter">.</span><span class="identifier">restock</span><span class="delimiter">(</span><span class="integer">50</span><span class="delimiter">)</span>
+        <span class="identifier">print</span><span class="delimiter">(</span><span class="identifier">f</span><span class="string">"\n  Restocked '{pen_pack.name}' — new stock: {pen_pack.stock}"</span><span class="delimiter">)</span>
+
+    <span class="comment"># Export</span>
+    <span class="identifier">inv</span><span class="delimiter">.</span><span class="identifier">export_json</span><span class="delimiter">(</span><span class="string">"inventory_export.json"</span><span class="delimiter">)</span>
+    <span class="identifier">print</span><span class="delimiter">(</span><span class="identifier">f</span><span class="string">"\n  Inventory exported. Log entries: {len(inv.log)}\n"</span><span class="delimiter">)</span>
+
+
+<span class="keyword">if</span> <span class="identifier">__name__</span> <span class="operator">==</span> <span class="string">"__main__"</span><span class="delimiter">:</span>
+    <span class="identifier">main</span><span class="delimiter">(</span><span class="delimiter">)</span></pre>
+  </body>
+</html>

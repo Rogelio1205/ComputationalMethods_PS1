@@ -205,8 +205,9 @@
 .string {color:#c3e88d}
 .comment {color:#7f848e;font-style:italic}
 .operator {color:#89ddff}
-.delimiter {color:#f8f8f2}
+.delimiter {color:#ff9d41}
 .whitespace {color:inherit}")
+
 
 (define (tokens->html tokens)
   (apply string-append (map token->-html tokens)))
