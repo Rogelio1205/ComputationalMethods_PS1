@@ -5,14 +5,7 @@
 (struct token (type value) #:transparent)
 
 (define KEYWORDS
-  (set "and" "as" "assert" "async" "await"
-       "break" "case" "class" "continue"
-       "def" "del" "elif" "else" "except"
-       "False" "finally" "for" "from"
-       "global" "if" "import" "in" "is"
-       "lambda" "match" "None" "nonlocal"
-       "not" "or" "pass" "raise" "return"
-       "True" "try" "while" "with" "yield"))
+  (set "and" "as" "assert" "async" "await" "break" "case" "class" "continue" "def" "del" "elif" "else" "except" "False" "finally" "for" "from" "global" "if" "import" "in" "is" "lambda" "match" "None" "nonlocal" "not" "or" "pass" "raise" "return" "True" "try" "while" "with" "yield"))
 
 (define delimeters
   (set "(" ")" "[" "]" "{" "}" "," ":" "." ";"))
@@ -59,38 +52,38 @@
   (let loop ([remaining chars] [acc (list quote-char)])
     (cond
       [(null? remaining)
-       (values (list->string (reverse acc)) remaining)]
+      (values (list->string (reverse acc)) remaining)]
       [(char=? (car remaining) #\\)
-       (if (null? (cdr remaining))
-           (values (list->string (reverse (cons #\\ acc))) '())
-           (loop (cddr remaining)
-                 (cons (cadr remaining) (cons #\\ acc))))]
+      (if (null? (cdr remaining))
+          (values (list->string (reverse (cons #\\ acc))) '())
+          (loop (cddr remaining)
+                (cons (cadr remaining) (cons #\\ acc))))]
       [(char=? (car remaining) quote-char)
-       (values (list->string (reverse (cons quote-char acc)))
-               (cdr remaining))]
+      (values (list->string (reverse (cons quote-char acc)))
+              (cdr remaining))]
       [else
-       (loop (cdr remaining) (cons (car remaining) acc))])))
+      (loop (cdr remaining) (cons (car remaining) acc))])))
 
 (define (read-triple-string chars quote-char)
   (let loop ([remaining chars] [acc (list quote-char quote-char quote-char)])
     (cond
       [(null? remaining)
-       (values (list->string (reverse acc)) remaining)]
+      (values (list->string (reverse acc)) remaining)]
       [(and (>= (length remaining) 3)
             (char=? (car remaining) quote-char)
             (char=? (cadr remaining) quote-char)
             (char=? (caddr remaining) quote-char))
-       (values (list->string (reverse (append (list quote-char quote-char quote-char) acc)))
-               (cdddr remaining))]
+      (values (list->string (reverse (append (list quote-char quote-char quote-char) acc)))
+              (cdddr remaining))]
       [else
-       (loop (cdr remaining) (cons (car remaining) acc))])))
+      (loop (cdr remaining) (cons (car remaining) acc))])))
 
 (define (read-number chars)
   (let-values ([(int-part rest1) (read-while digit? chars)])
     (if (and (not (null? rest1))
-             (char=? (car rest1) #\.)
-             (not (null? (cdr rest1)))
-             (digit? (cadr rest1)))
+            (char=? (car rest1) #\.)
+            (not (null? (cdr rest1)))
+            (digit? (cadr rest1)))
         (let-values ([(dec-part rest2) (read-while digit? (cdr rest1))])
           (values (string-append int-part "." dec-part) rest2 'float))
         (values int-part rest1 'integer))))
@@ -101,8 +94,8 @@
     (if (null? rest)
         (values (string c1) rest)
         (let* ([c2   (car rest)]
-               [two  (string c1 c2)]
-               [two-char-ops '("==" "!=" "<=" ">=" "+=" "-=" "*=" "/=" "%=" "**" "//")])
+              [two  (string c1 c2)]
+              [two-char-ops '("==" "!=" "<=" ">=" "+=" "-=" "*=" "/=" "%=" "**" "//")])
           (if (member two two-char-ops)
               (values two (cdr rest))
               (values (string c1) rest))))))
@@ -113,59 +106,59 @@
     [(null? chars) '()]
 
     [(whitespace? (car chars))
-     (let-values ([(val rest) (read-while whitespace? chars)])
-       (cons (token 'whitespace val) (tokenize rest)))]
+    (let-values ([(val rest) (read-while whitespace? chars)])
+      (cons (token 'whitespace val) (tokenize rest)))]
 
     [(char=? (car chars) #\#)
-     (let-values ([(val rest) (read-comment chars)])
-       (cons (token 'comment val) (tokenize rest)))]
+    (let-values ([(val rest) (read-comment chars)])
+      (cons (token 'comment val) (tokenize rest)))]
 
     [(and (>= (length chars) 3)
           (char=? (car chars) #\")
           (char=? (cadr chars) #\")
           (char=? (caddr chars) #\"))
-     (let-values ([(val rest) (read-triple-string (cdddr chars) #\")])
-       (cons (token 'string val) (tokenize rest)))]
+    (let-values ([(val rest) (read-triple-string (cdddr chars) #\")])
+      (cons (token 'string val) (tokenize rest)))]
 
     [(and (>= (length chars) 3)
           (char=? (car chars) #\')
           (char=? (cadr chars) #\')
           (char=? (caddr chars) #\'))
-     (let-values ([(val rest) (read-triple-string (cdddr chars) #\')])
-       (cons (token 'string val) (tokenize rest)))]
+    (let-values ([(val rest) (read-triple-string (cdddr chars) #\')])
+      (cons (token 'string val) (tokenize rest)))]
 
     [(char=? (car chars) #\")
-     (let-values ([(val rest) (read-string (cdr chars) #\")])
-       (cons (token 'string val) (tokenize rest)))]
+    (let-values ([(val rest) (read-string (cdr chars) #\")])
+      (cons (token 'string val) (tokenize rest)))]
 
     [(char=? (car chars) #\')
-     (let-values ([(val rest) (read-string (cdr chars) #\')])
-       (cons (token 'string val) (tokenize rest)))]
+    (let-values ([(val rest) (read-string (cdr chars) #\')])
+      (cons (token 'string val) (tokenize rest)))]
 
     [(digit? (car chars))
-     (let-values ([(val rest type) (read-number chars)])
-       (cons (token type val) (tokenize rest)))]
+    (let-values ([(val rest type) (read-number chars)])
+      (cons (token type val) (tokenize rest)))]
 
     [(letter? (car chars))
-     (let-values ([(val rest) (read-while word-char? chars)])
-       (cons (classify-word val) (tokenize rest)))]
+    (let-values ([(val rest) (read-while word-char? chars)])
+      (cons (classify-word val) (tokenize rest)))]
 
     [(operator-start? (car chars))
-     (let-values ([(val rest) (read-operator chars)])
-       (cons (token 'operator val) (tokenize rest)))]
+    (let-values ([(val rest) (read-operator chars)])
+      (cons (token 'operator val) (tokenize rest)))]
 
     [(set-member? delimeters (string (car chars)))
-     (cons (token 'delimiter (string (car chars)))
-           (tokenize (cdr chars)))]
+    (cons (token 'delimiter (string (car chars)))
+          (tokenize (cdr chars)))]
 
-    [else
-     (tokenize (cdr chars))]))
+      [else
+      (tokenize (cdr chars))]))
 
 (define (tokenize-string input)
   (tokenize (string->list input)))
 
 ; DEBUG, change the file to make tests, comment it when the HTML and CSS is done.
-
+#|
 (define (read-file path)
   (call-with-input-file path
     (lambda (port)
@@ -177,6 +170,7 @@
                       (token-type tok)
                       (token-value tok)))
             tokens))
+|#
 ;; Convert text to HTML-safe string
 (define (escape-html s)
   (let loop ([chars (string->list s)] [acc '()])
@@ -191,7 +185,7 @@
 
 (define (token->-html tok)
   (let* ([t (symbol->string (token-type tok))]
-         [v (escape-html (token-value tok))])
+        [v (escape-html (token-value tok))])
     (if (string-ci=? t "whitespace")
         v
         (format "<span class=\"~a\">~a</span>" t v))))
@@ -222,12 +216,12 @@
 
 (define (main)
   (let* ([args (current-command-line-arguments)]
-         [input (if (zero? (vector-length args)) "prueba.py" (vector-ref args 0))]
-         [source (read-file input)]
-         [tokens (tokenize-string source)]
-         [body (tokens->html tokens)]
-         [html (make-html-page body)]
-         [out (if (regexp-match #rx"\\.[^./\\]+$" input)
+        [input (if (zero? (vector-length args)) "prueba.py" (vector-ref args 0))]
+        [source (read-file input)]
+        [tokens (tokenize-string source)]
+        [body (tokens->html tokens)]
+        [html (make-html-page body)]
+        [out (if (regexp-match #rx"\\.[^./\\]+$" input)
                   (regexp-replace #rx"\\.[^./\\]+$" input ".html")
                   (string-append input ".html"))])
     (write-html out html)
